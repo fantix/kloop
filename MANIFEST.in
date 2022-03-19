@@ -1,3 +1,4 @@
+include Makefile
 recursive-include src *.pyx *.pxd
 graft tests
 global-exclude *.py[cod] *.c
