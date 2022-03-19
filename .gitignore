@@ -1,0 +1,9 @@
+/.idea/
+/.python-version
+/build/
+/dist/
+/src/**/__pycache__/
+/tests/**/__pycache__/
+/src/**/*.c
+/src/**/*.so
+/src/kloop.egg-info/
