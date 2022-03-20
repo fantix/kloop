@@ -1,3 +1,7 @@
+[tool.black]
+line-length = 79
+target-version = ["py310"]
+
 [build-system]
 requires = ["setuptools>=42", "Cython>=0.29"]
 build-backend = "setuptools.build_meta"

@@ -8,21 +8,8 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-
-from Cython.Build import cythonize
-from Cython.Distutils import Extension
-from setuptools import setup
-
-setup(
-    ext_modules=cythonize(
-        [
-            Extension("kloop.uring", ["src/kloop/uring.pyx"]),
-            Extension(
-                "kloop.ktls",
-                ["src/kloop/ktls.pyx"],
-                libraries=["ssl", "crypto"],
-            ),
-        ],
-        language_level="3",
-    )
-)
+cdef extern from "includes/barrier.h" nogil:
+    unsigned IO_URING_READ_ONCE(unsigned var)
+    void io_uring_smp_store_release(void* p, unsigned v)
+    unsigned int io_uring_smp_load_acquire(void* p)
+    void io_uring_smp_mb()

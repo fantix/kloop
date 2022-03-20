@@ -1,5 +1,5 @@
 include Makefile
-recursive-include src *.pyx *.pxd
+recursive-include src *.pyx *.pxd *.h
 graft tests
 global-exclude *.py[cod] *.c
 

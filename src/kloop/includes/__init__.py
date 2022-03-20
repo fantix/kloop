@@ -7,22 +7,3 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-
-
-from Cython.Build import cythonize
-from Cython.Distutils import Extension
-from setuptools import setup
-
-setup(
-    ext_modules=cythonize(
-        [
-            Extension("kloop.uring", ["src/kloop/uring.pyx"]),
-            Extension(
-                "kloop.ktls",
-                ["src/kloop/ktls.pyx"],
-                libraries=["ssl", "crypto"],
-            ),
-        ],
-        language_level="3",
-    )
-)
