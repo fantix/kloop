@@ -38,14 +38,21 @@ class TestLoop(unittest.TestCase):
 
     def test_connect(self):
         ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+        host = "www.google.com"
         r, w = self.loop.run_until_complete(
-            asyncio.open_connection("www.google.com", 443, ssl=ctx)
+            # asyncio.open_connection("127.0.0.1", 8080, ssl=ctx)
+            asyncio.open_connection(host, 443, ssl=ctx)
         )
-        w.write(b"GET / HTTP/1.1\r\n"
-            b"Host: www.google.com\r\n"
+        self.loop.run_until_complete(asyncio.sleep(1))
+        print('send request')
+        w.write(b"GET / HTTP/1.1\r\n" +
+            f"Host: {host}\r\n".encode("ISO-8859-1") +
             b"Connection: close\r\n"
             b"\r\n")
-        while line := self.loop.run_until_complete(r.readline()):
+        while line := self.loop.run_until_complete(r.read()):
             print(line)
         w.close()
         self.loop.run_until_complete(w.wait_closed())

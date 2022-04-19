@@ -32,6 +32,8 @@ cdef extern from "linux/tcp.h" nogil:
 
 
 cdef extern from "linux/tls.h" nogil:
+    int TLS_GET_RECORD_TYPE
+
     __u16 TLS_CIPHER_AES_GCM_256
     int TLS_CIPHER_AES_GCM_256_IV_SIZE
     int TLS_CIPHER_AES_GCM_256_SALT_SIZE

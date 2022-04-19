@@ -13,6 +13,7 @@ import asyncio.futures
 import asyncio.trsock
 import asyncio.transports
 import contextvars
+import errno
 import socket
 import ssl
 
@@ -98,11 +99,14 @@ class KLoopSocketTransport(
             self._recv_buffer_factory = protocol.get_buffer
         else:
             self._read_ready_cb = self._read_ready__data_received
-            self._recv_buffer = bytearray(256 * 1024)
+            self._recv_buffer = bytearray(64 * 1024 * 1024)
             self._recv_buffer_factory = lambda _hint: self._recv_buffer
         self._protocol = protocol
 
     def _read(self):
+        # print("RecvMsgWork")
+        if self._read_paused:
+            return
         self._loop._selector.submit(
             uring.RecvMsgWork(
                 self._sock.fileno(),
@@ -111,7 +115,7 @@ class KLoopSocketTransport(
             )
         )
 
-    def _read_ready__buffer_updated(self, res):
+    def _read_ready__buffer_updated(self, res, app_data):
         if res < 0:
             raise IOError
         elif res == 0:
@@ -124,20 +128,29 @@ class KLoopSocketTransport(
                 if not self._closing:
                     self._read()
 
-    def _read_ready__data_received(self, res):
+    def _read_ready__data_received(self, res, app_data):
+        print("_read_ready__data_received", res)
         if res < 0:
-            raise IOError(f"{res}")
+            if abs(res) == errno.EAGAIN:
+                print('EAGAIN')
+                self._read()
+            else:
+                raise IOError(f"{res}")
         elif res == 0:
             self._protocol.eof_received()
         else:
             try:
-                # print(f"data received: {res}")
-                self._protocol.data_received(self._recv_buffer[:res])
+                print(f"data received: {res}")
+                data = bytes(self._recv_buffer[:res])
+                # print(f"data received: {data}")
+                if app_data:
+                    self._protocol.data_received(data)
             finally:
                 if not self._closing:
                     self._read()
 
     def _write_done(self, res):
+        # print("_write_done")
         self._current_work = None
         if res < 0:
             # TODO: force close transport
@@ -153,6 +166,7 @@ class KLoopSocketTransport(
                     self._sock.fileno(), self._buffers, self._write_done
                 )
             self._loop._selector.submit(self._current_work)
+            # print("more SendWork")
             self._buffers = []
         elif self._closing:
             self._loop.call_soon(self._call_connection_lost, None)
@@ -168,6 +182,7 @@ class KLoopSocketTransport(
                 self._sock.fileno(), data, self._write_done
             )
             self._loop._selector.submit(self._current_work)
+            # print("SendWork")
         else:
             self._buffers.append(data)
         self._maybe_pause_protocol()
@@ -233,45 +248,87 @@ class KLoopSSLHandshakeProtocol(asyncio.Protocol):
         self._handshake()
 
     def _handshake(self):
+        ktls.get_state(self._sslobj)
         success, secrets = ktls.do_handshake_capturing_secrets(self._sslobj)
         self._secrets.update(secrets)
         if success:
+            # print("handshake done")
             if self._handshaking:
+                print(self._sslobj.cipher())
+                ktls.get_state(self._sslobj)
                 self._handshaking = False
+                try:
+                    data = self._sslobj.read(64 * 1024)
+                except ssl.SSLWantReadError:
+                    data = None
+                if data:
+                    while True:
+                        try:
+                            data += self._sslobj.read(64 * 1024)
+                        except ssl.SSLWantReadError:
+                            break
+                print("try read", data)
+                self._transport._upgrade_ktls_read(
+                    self._sslobj,
+                    self._secrets["SERVER_TRAFFIC_SECRET_0"],
+                    data,
+                )
                 if data := self._outgoing.read():
+                    print("last message")
                     self._transport.write(data)
                     self._transport._write_waiter = self._after_last_write
+                    # self._transport._write_waiter = lambda: self._transport._loop.call_later(1, self._after_last_write)
                     self._transport.pause_reading()
                 else:
                     self._after_last_write()
-            # else:
-            #     try:
-            #         data = self._sslobj.read(16384)
-            #     except ssl.SSLWantReadError:
-            #         data = None
-            #     self._transport._upgrade_ktls_read(
-            #         self._sslobj,
-            #         self._secrets["SERVER_TRAFFIC_SECRET_0"],
-            #         data,
-            #     )
+            else:
+                assert False
+                # try:
+                #     data = self._sslobj.read(64 * 1024)
+                # except ssl.SSLWantReadError:
+                #     data = None
+                # if data:
+                #     while True:
+                #         try:
+                #             data += self._sslobj.read(64 * 1024)
+                #         except ssl.SSLWantReadError:
+                #             break
+                # print("try read", data)
+                # # ktls.get_state(self._sslobj)
+                # self._after_last_write()
+                # self._transport._upgrade_ktls_read(
+                #     self._sslobj,
+                #     self._secrets["SERVER_TRAFFIC_SECRET_0"],
+                #     data,
+                # )
         else:
+            # print("SSLWantReadError")
             if data := self._outgoing.read():
                 self._transport.write(data)
 
     def _after_last_write(self):
-        try:
-            data = self._sslobj.read(16384)
-        except ssl.SSLWantReadError:
-            data = None
+        print("_after_last_write")
+        ktls.get_state(self._sslobj)
+        # try:
+        #     data = self._sslobj.read(64 * 1024)
+        # except ssl.SSLWantReadError:
+        #     data = None
+        # if data:
+        #     while True:
+        #         try:
+        #             data += self._sslobj.read(64 * 1024)
+        #         except ssl.SSLWantReadError:
+        #             break
+        # print("try read", data)
         self._transport._upgrade_ktls_write(
             self._sslobj,
             self._secrets["CLIENT_TRAFFIC_SECRET_0"],
         )
-        self._transport._upgrade_ktls_read(
-            self._sslobj,
-            self._secrets["SERVER_TRAFFIC_SECRET_0"],
-            data,
-        )
+        # self._transport._upgrade_ktls_read(
+        #     self._sslobj,
+        #     self._secrets["SERVER_TRAFFIC_SECRET_0"],
+        #     data,
+        # )
         self._transport.resume_reading()
 
 
@@ -303,7 +360,9 @@ class KLoopSSLTransport(KLoopSocketTransport):
         self._waiter = waiter
 
     def _upgrade_ktls_write(self, sslobj, secret):
+        print("_upgrade_ktls_write")
         ktls.upgrade_aes_gcm_256(sslobj, self._sock, secret, True)
+        self.set_protocol(self._app_protocol)
         self._loop.call_soon(self._app_protocol.connection_made, self)
         if self._waiter is not None:
             self._loop.call_soon(
@@ -313,13 +372,14 @@ class KLoopSSLTransport(KLoopSocketTransport):
             )
 
     def _upgrade_ktls_read(self, sslobj, secret, data):
+        print("_upgrade_ktls_read")
         ktls.upgrade_aes_gcm_256(sslobj, self._sock, secret, False)
-        self.set_protocol(self._app_protocol)
-        if data is not None:
-            if data:
-                self._app_protocol.data_received(data)
-            else:
-                self._app_protocol.eof_received()
+        # self.set_protocol(self._app_protocol)
+        # if data is not None:
+        #     if data:
+        #         self._app_protocol.data_received(data)
+        #     else:
+        #         self._app_protocol.eof_received()
 
 
 class KLoop(asyncio.BaseEventLoop):
@@ -344,6 +404,7 @@ class KLoop(asyncio.BaseEventLoop):
     def _make_socket_transport(
         self, sock, protocol, waiter=None, *, extra=None, server=None
     ):
+        sock.setblocking(True)
         return KLoopSocketTransport(
             self, sock, protocol, waiter, extra, server
         )

@@ -16,7 +16,7 @@ from cpython cimport PyMem_RawMalloc, PyMem_RawFree
 from libc cimport errno, string
 from posix cimport mman
 
-from .includes cimport barrier, libc, linux
+from .includes cimport barrier, libc, linux, ssl
 
 cdef linux.__u32 SIG_SIZE = libc._NSIG // 8
 
@@ -187,6 +187,7 @@ cdef class Ring:
 
     def submit(self, Work work):
         cdef linux.io_uring_sqe* sqe = self.sq.next_sqe()
+        # print(f"submit: {work}")
         work.submit(sqe)
 
     def select(self, timeout):
@@ -225,19 +226,22 @@ cdef class Ring:
         if need_enter:
             arg.sigmask = 0
             arg.sigmask_sz = SIG_SIZE
-            print(f"SYS_io_uring_enter(submit={submit}, wait_nr={wait_nr}, "
-                  f"flags={flags:b}, timeout={timeout})")
-            ret = libc.syscall(
-                libc.SYS_io_uring_enter,
-                self.enter_fd,
-                submit,
-                wait_nr,
-                flags,
-                &arg,
-                sizeof(arg),
-            )
+            # print(f"SYS_io_uring_enter(submit={submit}, wait_nr={wait_nr}, "
+            #       f"flags={flags:b}, timeout={timeout})")
+            with nogil:
+                ret = libc.syscall(
+                    libc.SYS_io_uring_enter,
+                    self.enter_fd,
+                    submit,
+                    wait_nr,
+                    flags,
+                    &arg,
+                    sizeof(arg),
+                )
             if ret < 0:
                 if errno.errno != errno.ETIME:
+                    print(f"SYS_io_uring_enter(submit={submit}, wait_nr={wait_nr}, "
+                          f"flags={flags:b}, timeout={timeout})")
                     PyErr_SetFromErrno(IOError)
                     return
 
@@ -263,7 +267,7 @@ cdef class Work:
             int op,
             linux.io_uring_sqe * sqe,
             int fd,
-            void * addr,
+            void* addr,
             unsigned len,
             linux.__u64 offset,
     ):
@@ -386,6 +390,7 @@ cdef class RecvWork(Work):
 
 cdef class RecvMsgWork(Work):
     def __init__(self, int fd, buffers, callback):
+        cdef size_t size = libc.CMSG_SPACE(sizeof(unsigned char))
         self.fd = fd
         self.buffers = buffers
         self.callback = callback
@@ -398,9 +403,9 @@ cdef class RecvMsgWork(Work):
         for i, buf in enumerate(buffers):
             self.msg.msg_iov[i].iov_base = <char*>buf
             self.msg.msg_iov[i].iov_len = len(buf)
-        self.control_msg = bytearray(256)
+        self.control_msg = bytearray(size)
         self.msg.msg_control = <char*>self.control_msg
-        self.msg.msg_controllen = 256
+        self.msg.msg_controllen = size
 
     def __dealloc__(self):
         if self.msg.msg_iov != NULL:
@@ -410,11 +415,24 @@ cdef class RecvMsgWork(Work):
         self._submit(linux.IORING_OP_RECVMSG, sqe, self.fd, &self.msg, 1, 0)
 
     def complete(self):
-        if self.res < 0:
-            errno.errno = abs(self.res)
-            PyErr_SetFromErrno(IOError)
-            return
-        # if self.msg.msg_controllen:
-        #     print('control_msg:', self.control_msg[:self.msg.msg_controllen])
-        #     print('flags:', self.msg.msg_flags)
-        self.callback(self.res)
+        cdef:
+            libc.cmsghdr* cmsg
+            unsigned char* cmsg_data
+            unsigned char record_type
+        # if self.res < 0:
+        #     errno.errno = abs(self.res)
+        #     PyErr_SetFromErrno(IOError)
+        #     return
+        app_data = True
+        if self.msg.msg_controllen:
+            print('msg_controllen:', self.msg.msg_controllen)
+            cmsg = libc.CMSG_FIRSTHDR(&self.msg)
+            if cmsg.cmsg_level == libc.SOL_TLS and cmsg.cmsg_type == linux.TLS_GET_RECORD_TYPE:
+                cmsg_data = libc.CMSG_DATA(cmsg)
+                record_type = (<unsigned char*>cmsg_data)[0]
+                if record_type != ssl.SSL3_RT_APPLICATION_DATA:
+                    app_data = False
+                    print(f'cmsg.len={cmsg.cmsg_len}, cmsg.level={cmsg.cmsg_level}, cmsg.type={cmsg.cmsg_type}')
+                    print(f'record type: {record_type}')
+                    print('flags:', self.msg.msg_flags)
+        self.callback(self.res, app_data)

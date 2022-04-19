@@ -11,6 +11,7 @@
 import socket
 import hmac
 import hashlib
+import struct
 from ssl import SSLWantReadError
 
 from cpython cimport PyErr_SetFromErrno
@@ -61,20 +62,14 @@ def do_handshake_capturing_secrets(sslobj):
         ssl.SSL_CTX_set_keylog_callback(ctx, orig_cb)
 
 
-def hkdf_expand(pseudo_random_key, info=b"", length=32, hash=hashlib.sha384):
+def hkdf_expand(pseudo_random_key, label, length, hash_method=hashlib.sha384):
     '''
     Expand `pseudo_random_key` and `info` into a key of length `bytes` using
     HKDF's expand function based on HMAC with the provided hash (default
     SHA-512). See the HKDF draft RFC and paper for usage notes.
     '''
-    # info_in = info
-    # info = b'\0' + struct.pack("H", len(info)) + info + b'\0'
-    # print(f'hkdf_expand info_in= label={info.hex()}')
-    hash_len = hash().digest_size
-    length = int(length)
-    if length > 255 * hash_len:
-        raise Exception("Cannot expand to more than 255 * %d = %d bytes using the specified hash function" % \
-                        (hash_len, 255 * hash_len))
+    info = struct.pack("!HB", length, len(label)) + label + b'\0'
+    hash_len = hash_method().digest_size
     blocks_needed = length // hash_len + (0 if length % hash_len == 0 else 1) # ceil
     okm = b""
     output_block = b""
@@ -82,7 +77,7 @@ def hkdf_expand(pseudo_random_key, info=b"", length=32, hash=hashlib.sha384):
         output_block = hmac.new(
             pseudo_random_key,
             (output_block + info + bytearray((counter + 1,))),
-            hash,
+            hash_method,
         ).digest()
         okm += output_block
     return okm[:length]
@@ -93,6 +88,12 @@ def enable_ulp(sock):
     if libc.setsockopt(sock.fileno(), socket.SOL_TCP, linux.TCP_ULP, tls, 4):
         PyErr_SetFromErrno(IOError)
         return
+
+
+def get_state(sslobj):
+    cdef:
+        ssl.SSL* s = (<ssl.PySSLSocket*>sslobj._sslobj).ssl
+    print(ssl.SSL_get_state(s))
 
 
 def upgrade_aes_gcm_256(sslobj, sock, secret, sending):
@@ -108,7 +109,7 @@ def upgrade_aes_gcm_256(sslobj, sock, secret, sending):
         # s->rlayer->read_sequence
         seq = <char*>((<void*>s) + 6104)
 
-    # print(sslobj.cipher())
+    #  print(sslobj.cipher())
 
     string.memset(&crypto_info, 0, sizeof(crypto_info))
     crypto_info.info.cipher_type = linux.TLS_CIPHER_AES_GCM_256
@@ -116,7 +117,7 @@ def upgrade_aes_gcm_256(sslobj, sock, secret, sending):
 
     key = hkdf_expand(
         secret,
-        b'\x00 \ttls13 key\x00',
+        b'tls13 key',
         linux.TLS_CIPHER_AES_GCM_256_KEY_SIZE,
     )
     string.memcpy(
@@ -131,7 +132,7 @@ def upgrade_aes_gcm_256(sslobj, sock, secret, sending):
     )
     iv = hkdf_expand(
         secret,
-        b'\x00\x0c\x08tls13 iv\x00',
+        b'tls13 iv',
         linux.TLS_CIPHER_AES_GCM_256_IV_SIZE +
         linux.TLS_CIPHER_AES_GCM_256_SALT_SIZE,
     )

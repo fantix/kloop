@@ -31,6 +31,16 @@ cdef extern from "sys/socket.h" nogil:
         size_t msg_controllen   # ancillary data buffer len
         int msg_flags           # flags on received message
 
+    struct cmsghdr:
+        socklen_t cmsg_len      # data byte count, including header
+        int cmsg_level          # originating protocol
+        int cmsg_type           # protocol-specific type
+
+    size_t CMSG_LEN(size_t length)
+    cmsghdr* CMSG_FIRSTHDR(msghdr* msgh)
+    unsigned char* CMSG_DATA(cmsghdr* cmsg)
+    size_t CMSG_SPACE(size_t length)
+
 
 cdef extern from "arpa/inet.h" nogil:
     int inet_pton(int af, char* src, void* dst)

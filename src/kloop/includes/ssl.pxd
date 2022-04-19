@@ -23,6 +23,16 @@ cdef extern from "openssl/ssl.h" nogil:
     SSL_CTX_keylog_cb_func SSL_CTX_get_keylog_callback(SSL_CTX* ctx)
     SSL_CTX* SSL_get_SSL_CTX(SSL* ssl)
 
+    ctypedef enum OSSL_HANDSHAKE_STATE:
+        pass
+
+    OSSL_HANDSHAKE_STATE SSL_get_state(const SSL *ssl);
+
+    unsigned int SSL3_RT_CHANGE_CIPHER_SPEC
+    unsigned int SSL3_RT_ALERT
+    unsigned int SSL3_RT_HANDSHAKE
+    unsigned int SSL3_RT_APPLICATION_DATA
+
 
 cdef extern from "includes/ssl.h" nogil:
     ctypedef struct PySSLSocket:
