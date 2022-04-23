@@ -9,8 +9,6 @@
 # See the Mulan PSL v2 for more details.
 
 
-cdef extern from "includes/barrier.h" nogil:
-    unsigned IO_URING_READ_ONCE(unsigned var)
-    void io_uring_smp_store_release(void* p, unsigned v)
-    unsigned int io_uring_smp_load_acquire(void* p)
-    void io_uring_smp_mb()
+cdef extern from "openssl/err.h" nogil:
+    unsigned long get_error "ERR_get_error" ()
+    const char* reason_error_string "ERR_reason_error_string" (unsigned long e)

@@ -8,157 +8,119 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-import socket
-import hmac
-import hashlib
-import struct
-from ssl import SSLWantReadError
 
-from cpython cimport PyErr_SetFromErrno
+import ssl
+from cpython cimport PyMem_RawMalloc, PyMem_RawFree
 from libc cimport string
 
-from .includes cimport libc, linux, ssl
+from .includes.openssl cimport bio, err, ssl as ssl_h
+from .includes cimport pyssl
 
 
-cdef ssl.SSL_CTX_keylog_cb_func orig_cb
-cdef secrets = {}
-
-
-cdef void _capture_secrets(const ssl.SSL* s, const char* line) nogil:
-    if line != NULL:
-        try:
-            with gil:
-                global secrets
-                parts = line.decode("ISO-8859-1").split()
-                secrets[parts[0]] = bytes.fromhex(parts[-1])
-        finally:
-            if orig_cb != NULL:
-                orig_cb(s, line)
-
-
-def do_handshake_capturing_secrets(sslobj):
+cdef object fromOpenSSLError(object err_type):
     cdef:
-        ssl.SSL* s = (<ssl.PySSLSocket *> sslobj._sslobj).ssl
-        ssl.SSL_CTX* ctx = ssl.SSL_get_SSL_CTX(s)
-    global orig_cb
-    orig_cb = ssl.SSL_CTX_get_keylog_callback(ctx)
-    ssl.SSL_CTX_set_keylog_callback(
-        ctx, <ssl.SSL_CTX_keylog_cb_func>_capture_secrets
-    )
-    try:
-        try:
-            sslobj.do_handshake()
-        except SSLWantReadError:
-            success = False
-        else:
-            success = True
-        if secrets:
-            rv = dict(secrets)
-            secrets.clear()
-        else:
-            rv = {}
-        return success, rv
-    finally:
-        ssl.SSL_CTX_set_keylog_callback(ctx, orig_cb)
-
-
-def hkdf_expand(pseudo_random_key, label, length, hash_method=hashlib.sha384):
-    '''
-    Expand `pseudo_random_key` and `info` into a key of length `bytes` using
-    HKDF's expand function based on HMAC with the provided hash (default
-    SHA-512). See the HKDF draft RFC and paper for usage notes.
-    '''
-    info = struct.pack("!HB", length, len(label)) + label + b'\0'
-    hash_len = hash_method().digest_size
-    blocks_needed = length // hash_len + (0 if length % hash_len == 0 else 1) # ceil
-    okm = b""
-    output_block = b""
-    for counter in range(blocks_needed):
-        output_block = hmac.new(
-            pseudo_random_key,
-            (output_block + info + bytearray((counter + 1,))),
-            hash_method,
-        ).digest()
-        okm += output_block
-    return okm[:length]
-
-
-def enable_ulp(sock):
-    cdef char *tls = b"tls"
-    if libc.setsockopt(sock.fileno(), socket.SOL_TCP, linux.TCP_ULP, tls, 4):
-        PyErr_SetFromErrno(IOError)
-        return
-
-
-def get_state(sslobj):
-    cdef:
-        ssl.SSL* s = (<ssl.PySSLSocket*>sslobj._sslobj).ssl
-    print(ssl.SSL_get_state(s))
-
-
-def upgrade_aes_gcm_256(sslobj, sock, secret, sending):
-    cdef:
-        ssl.SSL* s = (<ssl.PySSLSocket*>sslobj._sslobj).ssl
-        linux.tls12_crypto_info_aes_gcm_256 crypto_info
-        char* seq
-
-    if sending:
-        # s->rlayer->write_sequence
-        seq = <char*>((<void*>s) + 6112)
+        unsigned long e = err.get_error()
+        const char* msg = err.reason_error_string(e)
+    if msg == NULL:
+        return err_type()
     else:
-        # s->rlayer->read_sequence
-        seq = <char*>((<void*>s) + 6104)
+        return err_type(msg.decode("ISO-8859-1"))
 
-    #  print(sslobj.cipher())
 
-    string.memset(&crypto_info, 0, sizeof(crypto_info))
-    crypto_info.info.cipher_type = linux.TLS_CIPHER_AES_GCM_256
-    crypto_info.info.version = ssl.SSL_version(s)
+cdef int bio_write_ex(
+    bio.BIO* b, const char* data, size_t datal, size_t* written
+) nogil:
+    with gil:
+        print('bio_write', data[:datal], int(<int>data))
+    bio.set_retry_write(b)
+    written[0] = 0
+    return 1
 
-    key = hkdf_expand(
-        secret,
-        b'tls13 key',
-        linux.TLS_CIPHER_AES_GCM_256_KEY_SIZE,
+
+cdef int bio_read_ex(
+    bio.BIO* b, char* data, size_t datal, size_t* readbytes
+) nogil:
+    with gil:
+        print('bio_read', datal, int(<int>data))
+    bio.set_retry_read(b)
+    readbytes[0] = 0
+    return 1
+
+
+cdef long bio_ctrl(bio.BIO* b, int cmd, long num, void* ptr) nogil:
+    cdef long ret = 0
+    with gil:
+        if cmd == bio.BIO_CTRL_EOF:
+            print("BIO_CTRL_EOF", ret)
+        elif cmd == bio.BIO_CTRL_PUSH:
+            print("BIO_CTRL_PUSH", ret)
+        elif cmd == bio.BIO_CTRL_FLUSH:
+            ret = 1
+            print('BIO_CTRL_FLUSH', ret)
+        else:
+            print('bio_ctrl', cmd, num)
+    return ret
+
+
+cdef int bio_create(bio.BIO* b) nogil:
+    cdef BIO* obj = <BIO*>PyMem_RawMalloc(sizeof(BIO))
+    if obj == NULL:
+        return 0
+    string.memset(obj, 0, sizeof(BIO))
+    bio.set_data(b, <void*>obj)
+    bio.set_init(b, 1)
+    return 1
+
+
+cdef int bio_destroy(bio.BIO* b) nogil:
+    cdef void* obj = bio.get_data(b)
+    if obj != NULL:
+        PyMem_RawFree(obj)
+    bio.set_shutdown(b, 1)
+    return 1
+
+
+cdef object wrap_bio(
+    bio.BIO* b,
+    object ssl_context,
+    bint server_side=False,
+    object server_hostname=None,
+    object session=None,
+):
+    cdef pyssl.PySSLMemoryBIO* c_bio
+    py_bio = ssl.MemoryBIO()
+    c_bio = <pyssl.PySSLMemoryBIO*>py_bio
+    c_bio.bio, b = b, c_bio.bio
+    rv = ssl_context.wrap_bio(
+        py_bio, py_bio, server_side, server_hostname, session
     )
-    string.memcpy(
-        crypto_info.key,
-        <char*>key,
-        linux.TLS_CIPHER_AES_GCM_256_KEY_SIZE,
+    c_bio.bio, b = b, c_bio.bio
+    ssl_h.set_options(
+        (<pyssl.PySSLSocket*>rv._sslobj).ssl, ssl_h.OP_ENABLE_KTLS
     )
-    string.memcpy(
-        crypto_info.rec_seq,
-        seq,
-        linux.TLS_CIPHER_AES_GCM_256_REC_SEQ_SIZE,
-    )
-    iv = hkdf_expand(
-        secret,
-        b'tls13 iv',
-        linux.TLS_CIPHER_AES_GCM_256_IV_SIZE +
-        linux.TLS_CIPHER_AES_GCM_256_SALT_SIZE,
-    )
-    string.memcpy(
-        crypto_info.iv,
-        <char*>iv+ ssl.EVP_GCM_TLS_FIXED_IV_LEN,
-        linux.TLS_CIPHER_AES_GCM_256_IV_SIZE,
-    )
-    string.memcpy(
-        crypto_info.salt,
-        <char*>iv,
-        linux.TLS_CIPHER_AES_GCM_256_SALT_SIZE,
-    )
-    if libc.setsockopt(
-        sock.fileno(),
-        libc.SOL_TLS,
-        linux.TLS_TX if sending else linux.TLS_RX,
-        &crypto_info,
-        sizeof(crypto_info),
-    ):
-        PyErr_SetFromErrno(IOError)
-        return
-    # print(
-    #     sending,
-    #     "iv", crypto_info.iv[:linux.TLS_CIPHER_AES_GCM_256_IV_SIZE].hex(),
-    #     "key", crypto_info.key[:linux.TLS_CIPHER_AES_GCM_256_KEY_SIZE].hex(),
-    #     "salt", crypto_info.salt[:linux.TLS_CIPHER_AES_GCM_256_SALT_SIZE].hex(),
-    #     "rec_seq", crypto_info.rec_seq[:linux.TLS_CIPHER_AES_GCM_256_REC_SEQ_SIZE].hex(),
-    # )
+    return rv
+
+
+def test():
+    cdef BIO* b
+    with nogil:
+        b = bio.new(KTLS_BIO_METHOD)
+    if b == NULL:
+        raise fromOpenSSLError(RuntimeError)
+    ctx = ssl.create_default_context()
+    return wrap_bio(b, ctx)
+
+
+cdef bio.Method* KTLS_BIO_METHOD = bio.meth_new(
+    bio.get_new_index(), "kTLS BIO"
+)
+if not bio.meth_set_write_ex(KTLS_BIO_METHOD, bio_write_ex):
+    raise fromOpenSSLError(ImportError)
+if not bio.meth_set_read_ex(KTLS_BIO_METHOD, bio_read_ex):
+    raise fromOpenSSLError(ImportError)
+if not bio.meth_set_ctrl(KTLS_BIO_METHOD, bio_ctrl):
+    raise fromOpenSSLError(ImportError)
+if not bio.meth_set_create(KTLS_BIO_METHOD, bio_create):
+    raise fromOpenSSLError(ImportError)
+if not bio.meth_set_destroy(KTLS_BIO_METHOD, bio_destroy):
+    raise fromOpenSSLError(ImportError)

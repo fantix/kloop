@@ -9,8 +9,29 @@
 # See the Mulan PSL v2 for more details.
 
 
-cdef extern from "includes/barrier.h" nogil:
-    unsigned IO_URING_READ_ONCE(unsigned var)
-    void io_uring_smp_store_release(void* p, unsigned v)
-    unsigned int io_uring_smp_load_acquire(void* p)
-    void io_uring_smp_mb()
+cdef unsigned char CANCELLED_MASK = 1
+cdef unsigned char SCHEDULED_MASK = 1 << 1
+
+
+cdef struct Callback:
+    unsigned char mask
+    PyObject* handle
+    long long when
+
+
+cdef class Handle:
+    cdef:
+        Callback cb
+        object callback
+        object args
+        KLoopImpl loop
+        object source_traceback
+        object repr
+        object context
+
+    cdef run(self)
+
+
+cdef class TimerHandle(Handle):
+    cdef:
+        bint scheduled

@@ -9,18 +9,47 @@
 # See the Mulan PSL v2 for more details.
 
 
+import sysconfig
+
+from setuptools import setup
 from Cython.Build import cythonize
 from Cython.Distutils import Extension
-from setuptools import setup
+
 
 setup(
     ext_modules=cythonize(
         [
-            Extension("kloop.uring", ["src/kloop/uring.pyx"]),
+            Extension("kloop.loop", ["src/kloop/loop.pyx"]),
             Extension(
                 "kloop.ktls",
                 ["src/kloop/ktls.pyx"],
-                libraries=["ssl", "crypto"],
+                libraries=[
+                    lib.strip().removeprefix("-l")
+                    for lib in sysconfig.get_config_var("OPENSSL_LIBS").split()
+                ],
+                include_dirs=[
+                    d.strip().removeprefix("-I")
+                    for d in sysconfig.get_config_var(
+                        "OPENSSL_INCLUDES"
+                    ).split()
+                ],
+                library_dirs=[
+                    d.strip().removeprefix("-L")
+                    for d in sysconfig.get_config_var(
+                        "OPENSSL_LDFLAGS"
+                    ).split()
+                    if d.strip().startswith("-L")
+                ],
+                extra_link_args=[
+                    d.strip()
+                    for d in sysconfig.get_config_var(
+                        "OPENSSL_LDFLAGS"
+                    ).split()
+                    if not d.strip().startswith("-L")
+                ],
+                runtime_library_dirs=(lambda x: [x] if x else [])(
+                    sysconfig.get_config_var("OPENSSL_RPATH")
+                ),
             ),
         ],
         language_level="3",

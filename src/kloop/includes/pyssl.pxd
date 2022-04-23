@@ -9,8 +9,26 @@
 # See the Mulan PSL v2 for more details.
 
 
-cdef extern from "includes/barrier.h" nogil:
-    unsigned IO_URING_READ_ONCE(unsigned var)
-    void io_uring_smp_store_release(void* p, unsigned v)
-    unsigned int io_uring_smp_load_acquire(void* p)
-    void io_uring_smp_mb()
+from .openssl.ssl cimport SSL
+from .openssl.bio cimport BIO
+
+cdef extern from *:
+    """
+    typedef struct {
+        PyObject_HEAD
+        PyObject *Socket; /* weakref to socket on which we're layered */
+        SSL *ssl;
+    } PySSLSocket;
+
+    typedef struct {
+        PyObject_HEAD
+        BIO *bio;
+        int eof_written;
+    } PySSLMemoryBIO;
+    """
+
+    ctypedef struct PySSLSocket:
+        SSL* ssl
+
+    ctypedef struct PySSLMemoryBIO:
+        BIO* bio

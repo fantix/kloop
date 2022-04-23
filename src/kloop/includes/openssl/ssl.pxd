@@ -9,8 +9,9 @@
 # See the Mulan PSL v2 for more details.
 
 
-cdef extern from "includes/barrier.h" nogil:
-    unsigned IO_URING_READ_ONCE(unsigned var)
-    void io_uring_smp_store_release(void* p, unsigned v)
-    unsigned int io_uring_smp_load_acquire(void* p)
-    void io_uring_smp_mb()
+cdef extern from "openssl/ssl.h" nogil:
+    ctypedef struct SSL:
+        pass
+
+    int OP_ENABLE_KTLS "SSL_OP_ENABLE_KTLS"
+    int set_options "SSL_set_options" (SSL* ssl, int options)
