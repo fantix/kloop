@@ -24,9 +24,6 @@ cdef extern from "sys/socket.h" nogil:
     ctypedef int socklen_t
     int SOL_TLS
 
-    int setsockopt(int socket, int level, int option_name,
-                   const void *option_value, socklen_t option_len);
-
     struct in_addr:
         pass
 
@@ -51,6 +48,15 @@ cdef extern from "sys/socket.h" nogil:
     cmsghdr* CMSG_FIRSTHDR(msghdr* msgh)
     unsigned char* CMSG_DATA(cmsghdr* cmsg)
     size_t CMSG_SPACE(size_t length)
+
+    int socket(int domain, int type, int protocol)
+    int setsockopt(
+        int socket,
+        int level,
+        int option_name,
+        const void* option_value,
+        socklen_t option_len,
+    )
 
 
 cdef extern from "arpa/inet.h" nogil:

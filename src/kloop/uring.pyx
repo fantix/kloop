@@ -168,14 +168,62 @@ cdef int ring_select(Ring* ring, long long timeout) nogil except -1:
     return ready
 
 
-cdef inline int ring_cq_pop(CompletionQueue* cq, void** data) nogil:
+cdef inline void ring_cq_pop(CompletionQueue* cq, RingCallback** callback) nogil:
     cdef:
         unsigned head
         linux.io_uring_cqe* cqe
-        int res
+        RingCallback* ret
     head = cq.khead[0]
     cqe = cq.cqes + (head & cq.kring_mask[0])
-    data[0] = <void*>cqe.user_data
-    res = cqe.res
+    ret = <RingCallback*>cqe.user_data
+    ret.res = cqe.res
+    callback[0] = ret
     barrier.io_uring_smp_store_release(cq.khead, head + 1)
-    return res
+
+
+cdef inline int ring_sq_submit(
+    SubmissionQueue* sq,
+    linux.__u8 op,
+    int fd,
+    unsigned long addr,
+    unsigned len,
+    linux.__u64 offset,
+    bint link,
+    RingCallback* callback,
+) nogil:
+    cdef:
+        unsigned int head, next
+        linux.io_uring_sqe* sqe
+    head = barrier.io_uring_smp_load_acquire(sq.khead)
+    next = sq.sqe_tail + 1
+    if next - head <= sq.kring_entries[0]:
+        sqe = &sq.sqes[sq.sqe_tail & sq.kring_mask[0]]
+        sq.sqe_tail = next
+
+        string.memset(sqe, 0, sizeof(linux.io_uring_sqe))
+        sqe.opcode = op
+        sqe.fd = fd
+        sqe.off = offset
+        sqe.addr = addr
+        sqe.len = len
+        if link:
+            sqe.flags = linux.IOSQE_IO_LINK
+        sqe.user_data = <linux.__u64>callback
+        return 1
+    else:
+        return 0
+
+
+cdef int ring_sq_submit_connect(
+    SubmissionQueue* sq, int fd, libc.sockaddr_in* addr, RingCallback* callback
+) nogil:
+    return ring_sq_submit(
+        sq,
+        linux.IORING_OP_CONNECT,
+        fd,
+        <unsigned long>addr,
+        0,
+        sizeof(addr[0]),
+        0,
+        callback,
+    )

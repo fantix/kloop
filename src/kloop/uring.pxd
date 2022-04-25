@@ -50,3 +50,9 @@ cdef struct Ring:
     linux.__u8 int_flags
     linux.__u8 pad[3]
     unsigned pad2
+
+
+cdef struct RingCallback:
+    void* data
+    int res
+    int (*callback)(RingCallback* cb) nogil except 0

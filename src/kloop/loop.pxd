@@ -21,6 +21,7 @@ include "./handle.pxd"
 include "./queue.pxd"
 include "./heapq.pxd"
 include "./uring.pxd"
+include "./tcp.pxd"
 
 
 cdef struct Loop:
@@ -38,6 +39,7 @@ cdef class KLoopImpl:
         object thread_id
         Loop loop
 
+    cpdef create_future(self)
     cdef inline check_closed(self)
     cdef inline bint _is_running(self)
     cdef inline check_running(self)

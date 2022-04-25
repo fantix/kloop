@@ -16,6 +16,7 @@ import functools
 import inspect
 import os
 import reprlib
+import socket
 import threading
 import traceback
 
@@ -42,6 +43,7 @@ include "./handle.pyx"
 include "./queue.pyx"
 include "./heapq.pyx"
 include "./uring.pyx"
+include "./tcp.pyx"
 
 
 cdef long long monotonic_ns() nogil except -1:
@@ -169,8 +171,8 @@ cdef inline int loop_run_once(
     cdef:
         Callback* callback
         long long timeout = -1, now
-        int nready, res
-        void* data
+        int nready
+        RingCallback* cb
 
     if scheduled.tail:
         if not filter_cancelled_calls(loop):
@@ -188,7 +190,9 @@ cdef inline int loop_run_once(
     if nready < 0:
         return 0
     while nready:
-        res = ring_cq_pop(&ring.cq, &data)
+        ring_cq_pop(&ring.cq, &cb)
+        if cb != NULL and not cb.callback(cb):
+            return 0
         nready -= 1
 
     now = monotonic_ns() + 1
@@ -483,7 +487,7 @@ cdef class KLoopImpl:
     async def shutdown_default_executor(self):
         pass
 
-    def create_future(self):
+    cpdef create_future(self):
         return asyncio_Future(loop=self)
 
     def _timer_handle_cancelled(self, handle):
@@ -506,7 +510,11 @@ cdef class KLoopImpl:
         happy_eyeballs_delay=None,
         interleave=None,
     ):
-        pass
+        cdef TCPTransport transport = TCPTransport.new(protocol_factory, self)
+        r = socket.getaddrinfo(host, port)[0]
+        host, port = r[-1]
+        waiter = transport.connect(host, port)
+        return transport, await waiter
 
 
 class KLoop(KLoopImpl, asyncio.AbstractEventLoop):
