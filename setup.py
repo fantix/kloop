@@ -9,17 +9,42 @@
 # See the Mulan PSL v2 for more details.
 
 
+import subprocess
 import sysconfig
 
 from setuptools import setup
 from Cython.Build import cythonize
 from Cython.Distutils import Extension
+from Cython.Distutils import build_ext
+
+
+DEBUG = True
+RESOLVER_LIB = (
+    f"resolver/target/{'debug' if DEBUG else 'release'}/libkloop_resolver.a"
+)
+
+
+class build_ext_with_resolver(build_ext):
+    def run(self):
+        subprocess.check_call(
+            ["cargo", "build"] + [] if DEBUG else ["-r"],
+            cwd="resolver",
+        )
+        super().run()
 
 
 setup(
+    cmdclass={
+        "build_ext": build_ext_with_resolver,
+    },
     ext_modules=cythonize(
         [
-            Extension("kloop.loop", ["src/kloop/loop.pyx"]),
+            Extension(
+                "kloop.loop",
+                ["src/kloop/loop.pyx"],
+                extra_link_args=[RESOLVER_LIB],
+                depends=[RESOLVER_LIB],
+            ),
             Extension(
                 "kloop.ktls",
                 ["src/kloop/ktls.pyx"],
@@ -53,5 +78,5 @@ setup(
             ),
         ],
         language_level="3",
-    )
+    ),
 )

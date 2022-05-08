@@ -1,5 +1,8 @@
 include Makefile
 include architecture.png
 recursive-include src *.pyx *.pxd *.h
+include resolver/Cargo.toml
+include resolver/Cargo.lock
+recursive-include resolver *.rs
 graft tests
 global-exclude *.py[cod] *.c

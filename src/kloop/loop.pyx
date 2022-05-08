@@ -16,7 +16,6 @@ import functools
 import inspect
 import os
 import reprlib
-import socket
 import threading
 import traceback
 
@@ -39,11 +38,14 @@ cdef int MIN_SCHEDULED_TIMER_HANDLES = 100
 # that are cancelled before cleanup
 cdef int MAX_CANCELLED_TIMER_HANDLES_RATIO = 2
 
-include "./handle.pyx"
-include "./queue.pyx"
-include "./heapq.pyx"
-include "./uring.pyx"
-include "./tcp.pyx"
+include "handle.pyx"
+include "queue.pyx"
+include "heapq.pyx"
+include "uring.pyx"
+include "tcp.pyx"
+include "udp.pyx"
+include "fileio.pyx"
+include "resolver.pyx"
 
 
 cdef long long monotonic_ns() nogil except -1:
@@ -172,7 +174,7 @@ cdef inline int loop_run_once(
         Callback* callback
         long long timeout = -1, now
         int nready
-        RingCallback* cb
+        RingCallback* cb = NULL
 
     if scheduled.tail:
         if not filter_cancelled_calls(loop):
@@ -248,6 +250,7 @@ cdef class KLoopImpl:
         with nogil:
             loop_init(&self.loop, depth, &params)
 
+        self.resolver = Resolver.new(self)
         self.closed = False
         self.thread_id = None
 
@@ -510,11 +513,25 @@ cdef class KLoopImpl:
         happy_eyeballs_delay=None,
         interleave=None,
     ):
-        cdef TCPTransport transport = TCPTransport.new(protocol_factory, self)
-        r = socket.getaddrinfo(host, port)[0]
-        host, port = r[-1]
-        waiter = transport.connect(host, port)
-        return transport, await waiter
+        cdef:
+            TCPTransport transport
+            Resolve resolve
+            object waiter
+            size_t i
+
+        resolve = await self.resolver.lookup_ip(host, port)
+        if not resolve.r.result_len:
+            raise RuntimeError(f"Cannot resolve host: {host!r}")
+
+        transport = TCPTransport.new(protocol_factory, self)
+        exceptions = []
+        for i in range(resolve.r.result_len):
+            try:
+                waiter = transport.connect(resolve.r.result + i)
+                return transport, await waiter
+            except OSError as e:
+                exceptions.append(e)
+        raise exceptions[0]
 
 
 class KLoop(KLoopImpl, asyncio.AbstractEventLoop):

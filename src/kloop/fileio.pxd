@@ -9,25 +9,11 @@
 # See the Mulan PSL v2 for more details.
 
 
-cdef struct TCPConnect:
-    int fd
-    libc.sockaddr* addr
-    RingCallback ring_cb
+cdef struct FileReader:
     Loop* loop
-    Callback* cb
-
-
-cdef class TCPTransport:
-    cdef:
-        KLoopImpl loop
-        int fd
-        TCPConnect connector
-        object waiter
-        object protocol_factory
-        Handle handle
-
-    @staticmethod
-    cdef TCPTransport new(object protocol_factory, KLoopImpl loop)
-
-    cdef connect(self, libc.sockaddr* addr)
-    cdef connect_cb(self)
+    const char* path
+    int fd, cancelled
+    char* data
+    size_t size, offset
+    RingCallback ring_cb
+    RingCallback done_cb

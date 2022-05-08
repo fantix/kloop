@@ -13,7 +13,7 @@ cdef int tcp_connect(TCPConnect* connector) nogil:
     return ring_sq_submit_connect(
         &connector.loop.ring.sq,
         connector.fd,
-        &connector.addr,
+        connector.addr,
         &connector.ring_cb,
     )
 
@@ -29,29 +29,22 @@ cdef class TCPTransport:
         cdef TCPTransport rv = TCPTransport.__new__(TCPTransport)
         rv.protocol_factory = protocol_factory
         rv.loop = loop
+        rv.connector.loop = &loop.loop
+        rv.connector.ring_cb.callback = tcp_connect_cb
+        rv.connector.ring_cb.data = &rv.connector
         return rv
 
-    cdef connect(self, host, port):
+    cdef connect(self, libc.sockaddr* addr):
         cdef:
             int fd
             TCPConnect* c = &self.connector
 
-        fd = libc.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+        fd = libc.socket(addr.sa_family, libc.SOCK_STREAM, 0)
         if fd == -1:
             PyErr_SetFromErrno(IOError)
             return
-        self.host_bytes = host.encode()
-        if not libc.inet_pton(
-            socket.AF_INET, <char*>self.host_bytes, &c.addr.sin_addr
-        ):
-            PyErr_SetFromErrno(IOError)
-            return
-        c.addr.sin_family = socket.AF_INET
-        c.addr.sin_port = libc.htons(port)
+        c.addr = addr
         c.fd = self.fd = fd
-        c.loop = &self.loop.loop
-        c.ring_cb.callback = tcp_connect_cb
-        c.ring_cb.data = c
         self.handle = Handle(self.connect_cb, (self,), self.loop, None)
         c.cb = &self.handle.cb
         if not tcp_connect(c):
@@ -61,6 +54,11 @@ cdef class TCPTransport:
 
     cdef connect_cb(self):
         if self.connector.ring_cb.res != 0:
+            if not ring_sq_submit_close(
+                &self.loop.loop.ring.sq, self.fd, NULL
+            ):
+                # TODO: fd not closed?
+                pass
             try:
                 errno.errno = abs(self.connector.ring_cb.res)
                 PyErr_SetFromErrno(IOError)

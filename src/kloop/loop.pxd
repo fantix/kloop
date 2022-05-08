@@ -14,6 +14,7 @@ from cpython cimport PyMem_RawMalloc, PyMem_RawFree, PyMem_RawRealloc
 from cpython cimport PyObject, Py_INCREF, Py_DECREF
 from libc cimport errno, string
 from posix cimport mman, unistd, time
+from posix.types cimport mode_t
 
 from .includes cimport libc, linux, barrier
 
@@ -22,6 +23,9 @@ include "./queue.pxd"
 include "./heapq.pxd"
 include "./uring.pxd"
 include "./tcp.pxd"
+include "./udp.pxd"
+include "./fileio.pxd"
+include "./resolver.pxd"
 
 
 cdef struct Loop:
@@ -31,6 +35,7 @@ cdef struct Loop:
     Queue ready
     int timer_cancelled_count
     PyObject* loop
+    CResolver resolver
 
 
 cdef class KLoopImpl:

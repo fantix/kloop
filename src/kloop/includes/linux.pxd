@@ -80,6 +80,9 @@ cdef extern from "linux/io_uring.h" nogil:
         IORING_OP_SENDMSG
         IORING_OP_RECV
         IORING_OP_RECVMSG
+        IORING_OP_OPENAT
+        IORING_OP_READ
+        IORING_OP_CLOSE
 
     struct io_sqring_offsets:
         __u32 head
@@ -120,6 +123,7 @@ cdef extern from "linux/io_uring.h" nogil:
         __u32 len           # buffer size or number of iovecs
         __u64 user_data     # data to be passed back at completion time
         __u8 flags          # IOSQE_ flags
+        __u32 open_flags
 
     struct io_uring_cqe:
         __u64 user_data     # data to be passed back at completion time

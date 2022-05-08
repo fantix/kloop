@@ -21,18 +21,22 @@ cdef extern from "signal.h" nogil:
     int _NSIG
 
 cdef extern from "sys/socket.h" nogil:
+    enum:
+        SOCK_DGRAM
+        SOCK_STREAM
+
     ctypedef int socklen_t
+    ctypedef int sa_family_t
+    ctypedef int in_port_t
+
     int SOL_TLS
 
-    struct in_addr:
-        pass
-
-    struct sockaddr_in:
-        int sin_family
-        int sin_port
-        in_addr sin_addr
+    struct sockaddr:
+        sa_family_t sa_family
 
     struct msghdr:
+        void* msg_name          # Optional address
+        socklen_t msg_namelen   # Size of address
         iovec* msg_iov          # Scatter/gather array
         size_t msg_iovlen       # Number of elements in msg_iov
         void* msg_control       # ancillary data, see below
@@ -57,6 +61,7 @@ cdef extern from "sys/socket.h" nogil:
         const void* option_value,
         socklen_t option_len,
     )
+    int bind(int sockfd, const sockaddr* addr, socklen_t addrlen)
 
 
 cdef extern from "arpa/inet.h" nogil:
@@ -67,3 +72,8 @@ cdef extern from "sys/uio.h" nogil:
     struct iovec:
         void* iov_base
         size_t iov_len
+
+
+cdef extern from "<errno.h>" nogil:
+    enum:
+        ECANCELED

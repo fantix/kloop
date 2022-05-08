@@ -1,0 +1,19 @@
+[package]
+name = "resolver"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "kloop_resolver"
+crate-type = ["staticlib"]
+
+[dependencies]
+libc = "0.2.124"
+log = "0.4.16"
+resolv-conf = { version = "0.7.0", features = ["system"] }
+trust-dns-proto = { git = "https://github.com/fantix/trust-dns", branch = "0_21_2_patch", default-features = true }
+trust-dns-resolver = { git = "https://github.com/fantix/trust-dns", branch = "0_21_2_patch", default-features = true }
+futures-util = "0.3.21"
+futures-io = "0.3.5"
+futures-executor = "0.3.5"
+async-trait = "0.1.43"

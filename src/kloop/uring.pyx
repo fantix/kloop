@@ -176,12 +176,13 @@ cdef inline void ring_cq_pop(CompletionQueue* cq, RingCallback** callback) nogil
     head = cq.khead[0]
     cqe = cq.cqes + (head & cq.kring_mask[0])
     ret = <RingCallback*>cqe.user_data
-    ret.res = cqe.res
-    callback[0] = ret
+    if ret != NULL:
+        ret.res = cqe.res
+        callback[0] = ret
     barrier.io_uring_smp_store_release(cq.khead, head + 1)
 
 
-cdef inline int ring_sq_submit(
+cdef inline linux.io_uring_sqe* ring_sq_submit(
     SubmissionQueue* sq,
     linux.__u8 op,
     int fd,
@@ -209,15 +210,15 @@ cdef inline int ring_sq_submit(
         if link:
             sqe.flags = linux.IOSQE_IO_LINK
         sqe.user_data = <linux.__u64>callback
-        return 1
+        return sqe
     else:
-        return 0
+        return NULL
 
 
 cdef int ring_sq_submit_connect(
-    SubmissionQueue* sq, int fd, libc.sockaddr_in* addr, RingCallback* callback
+    SubmissionQueue* sq, int fd, libc.sockaddr* addr, RingCallback* callback
 ) nogil:
-    return ring_sq_submit(
+    return 1 if ring_sq_submit(
         sq,
         linux.IORING_OP_CONNECT,
         fd,
@@ -226,4 +227,83 @@ cdef int ring_sq_submit_connect(
         sizeof(addr[0]),
         0,
         callback,
+    ) else 0
+
+
+cdef int ring_sq_submit_openat(
+    SubmissionQueue* sq,
+    int dfd,
+    const char* path,
+    int flags,
+    mode_t mode,
+    RingCallback* callback,
+) nogil:
+    cdef linux.io_uring_sqe* sqe = ring_sq_submit(
+        sq,
+        linux.IORING_OP_OPENAT,
+        dfd,
+        <unsigned long>path,
+        mode,
+        0,
+        0,
+        callback,
     )
+    if sqe == NULL:
+        return 0
+    else:
+        sqe.open_flags = flags
+        return 1
+
+
+cdef int ring_sq_submit_read(
+    SubmissionQueue* sq,
+    int fd,
+    char* buf,
+    unsigned nbytes,
+    linux.__u64 offset,
+    RingCallback* callback,
+) nogil:
+    return 1 if ring_sq_submit(
+        sq,
+        linux.IORING_OP_READ,
+        fd,
+        <unsigned long>buf,
+        nbytes,
+        offset,
+        0,
+        callback,
+    ) else 0
+
+
+cdef int ring_sq_submit_close(
+    SubmissionQueue* sq,
+    int fd,
+    RingCallback * callback,
+) nogil:
+    return 1 if ring_sq_submit(
+        sq,
+        linux.IORING_OP_CLOSE,
+        fd,
+        0,
+        0,
+        0,
+        0,
+        callback,
+    ) else 0
+
+cdef int ring_sq_submit_sendmsg(
+    SubmissionQueue* sq,
+    int fd,
+    const libc.msghdr *msg,
+    RingCallback* callback,
+) nogil:
+    return 1 if ring_sq_submit(
+        sq,
+        linux.IORING_OP_SENDMSG,
+        fd,
+        <unsigned long>msg,
+        1,
+        0,
+        0,
+        callback,
+    ) else 0
