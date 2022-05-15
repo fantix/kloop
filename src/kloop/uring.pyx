@@ -107,7 +107,7 @@ cdef inline unsigned ring_sq_flush(SubmissionQueue* sq) nogil:
             tail += 1
             sq.sqe_head += 1
             to_submit -= 1
-        barrier.io_uring_smp_store_release(sq.ktail, tail)
+        atomic.store_explicit(<atomic.uint*>sq.ktail, tail, atomic.release)
     return tail - sq.khead[0]
 
 
@@ -124,7 +124,9 @@ cdef int ring_select(Ring* ring, long long timeout) nogil except -1:
 
     # Call enter if we have no CQE ready and timeout is not 0, or else we
     # handle the ready CQEs first.
-    ready = barrier.io_uring_smp_load_acquire(cq.ktail) - cq.khead[0]
+    ready = atomic.load_explicit(
+        <atomic.uint*>cq.ktail, atomic.acquire
+    ) - cq.khead[0]
     if not ready and timeout != 0:
         flags |= linux.IORING_ENTER_GETEVENTS
         if timeout > 0:
@@ -138,9 +140,9 @@ cdef int ring_select(Ring* ring, long long timeout) nogil except -1:
     # there is something for the kernel to handle.
     submit = ring_sq_flush(sq)
     if submit:
-        barrier.io_uring_smp_mb()
-        if barrier.IO_URING_READ_ONCE(
-            sq.kflags[0]
+        atomic.thread_fence(atomic.seq_cst)
+        if atomic.load_explicit(
+            <atomic.uint*>sq.kflags, atomic.relaxed
         ) & linux.IORING_SQ_NEED_WAKEUP:
             arg.ts = 0
             flags |= linux.IORING_ENTER_SQ_WAKEUP
@@ -163,7 +165,9 @@ cdef int ring_select(Ring* ring, long long timeout) nogil except -1:
                     PyErr_SetFromErrno(IOError)
                     return -1
 
-        ready = barrier.io_uring_smp_load_acquire(cq.ktail) - cq.khead[0]
+        ready = atomic.load_explicit(
+            <atomic.uint*>cq.ktail, atomic.acquire
+        ) - cq.khead[0]
 
     return ready
 
@@ -179,7 +183,7 @@ cdef inline void ring_cq_pop(CompletionQueue* cq, RingCallback** callback) nogil
     if ret != NULL:
         ret.res = cqe.res
         callback[0] = ret
-    barrier.io_uring_smp_store_release(cq.khead, head + 1)
+    atomic.store_explicit(<atomic.uint*>cq.khead, head + 1, atomic.release)
 
 
 cdef inline linux.io_uring_sqe* ring_sq_submit(
@@ -195,7 +199,7 @@ cdef inline linux.io_uring_sqe* ring_sq_submit(
     cdef:
         unsigned int head, next
         linux.io_uring_sqe* sqe
-    head = barrier.io_uring_smp_load_acquire(sq.khead)
+    head = atomic.load_explicit(<atomic.uint*>sq.khead, atomic.acquire)
     next = sq.sqe_tail + 1
     if next - head <= sq.kring_entries[0]:
         sqe = &sq.sqes[sq.sqe_tail & sq.kring_mask[0]]

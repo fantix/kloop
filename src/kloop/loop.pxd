@@ -16,7 +16,7 @@ from libc cimport errno, string
 from posix cimport mman, unistd, time
 from posix.types cimport mode_t
 
-from .includes cimport libc, linux, barrier
+from .includes cimport atomic, libc, linux
 
 include "./handle.pxd"
 include "./queue.pxd"
