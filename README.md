@@ -35,7 +35,7 @@ kLoop 的源代码或发行版。
 ## 环境需求
 
 * Python >= 3.10
-* Linux >= 5.11 (用 `modprobe ktls` 命令来启用 kTLS 模块)
+* Linux >= 5.11 (用 `modprobe tls` 命令来启用 kTLS 模块)
 * OpenSSL >= 3.0（支持 kTLS 收包代工需要最新的开发版本）
 
 目前主要是在 Ubuntu 22.04 上开发测试的。
