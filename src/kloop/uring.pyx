@@ -311,3 +311,20 @@ cdef int ring_sq_submit_sendmsg(
         0,
         callback,
     ) else 0
+
+cdef int ring_sq_submit_recvmsg(
+        SubmissionQueue* sq,
+        int fd,
+        const libc.msghdr *msg,
+        RingCallback* callback,
+) nogil:
+    return 1 if ring_sq_submit(
+        sq,
+        linux.IORING_OP_RECVMSG,
+        fd,
+        <unsigned long>msg,
+        1,
+        0,
+        0,
+        callback,
+    ) else 0

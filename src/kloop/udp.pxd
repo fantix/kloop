@@ -9,10 +9,11 @@
 # See the Mulan PSL v2 for more details.
 
 
-cdef struct UDPSend:
+cdef struct UDPAction:
     int fd
     libc.iovec vec
     libc.msghdr msg
     RingCallback callback
     CResolver* resolver
     void* rust_waker
+    libc.sockaddr addr

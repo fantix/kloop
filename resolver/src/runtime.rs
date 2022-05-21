@@ -18,11 +18,12 @@ use futures_io::{AsyncRead, AsyncWrite};
 use libc::{sockaddr, socklen_t};
 use std::fmt::Debug;
 use std::future::Future;
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::pin::Pin;
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 use std::{io, mem};
+use futures_util::future::Ready;
 use trust_dns_proto::error::ProtoError;
 use trust_dns_proto::tcp::{Connect, DnsTcpStream};
 use trust_dns_proto::udp::UdpSocket;
@@ -99,6 +100,7 @@ impl DnsTcpStream for KLoopTcp {
 pub struct KLoopUdp {
     fd: libc::c_int,
     send: libc::c_ulong,
+    recv: libc::c_ulong,
 }
 
 #[async_trait]
@@ -112,8 +114,9 @@ impl UdpSocket for KLoopUdp {
             let resolver = resolver.borrow().unwrap();
             let resolver = unsafe { resolver.as_ref() }.unwrap();
             let resolver = resolver.c_resolver;
-            let send = unsafe { kloop::udp_send_init(fd, resolver) };
-            Ok(KLoopUdp { fd, send })
+            let send = unsafe { kloop::udp_action_init(fd, resolver) };
+            let recv = unsafe { kloop::udp_action_init(fd, resolver) };
+            Ok(KLoopUdp { fd, send, recv })
         })
     }
 
@@ -122,8 +125,22 @@ impl UdpSocket for KLoopUdp {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<(usize, SocketAddr)>> {
-        println!("TODO: poll_recv_from");
-        todo!()
+        let waker = Box::new(cx.waker().clone());
+        match unsafe {
+            kloop::udp_recv_poll(
+                self.recv,
+                buf.as_mut_ptr(),
+                buf.len(),
+                Box::into_raw(waker),
+            )
+        } {
+            res if res > 0 => {
+                Poll::Ready(unsafe {
+                    ptr_to_socket_addr(kloop::udp_get_addr(self.recv))
+                }.map(|addr| (res as usize, addr)))
+            }
+            _ => Poll::Pending,
+        }
     }
 
     fn poll_send_to(
@@ -154,6 +171,15 @@ impl UdpSocket for KLoopUdp {
     }
 }
 
+impl Drop for KLoopUdp {
+    fn drop(&mut self) {
+        unsafe {
+            kloop::udp_action_free(self.send);
+            kloop::udp_action_free(self.recv);
+        }
+    }
+}
+
 fn socket_addr_as_ptr(addr: SocketAddr) -> (*const sockaddr, socklen_t) {
     match addr {
         SocketAddr::V4(ref a) => (
@@ -164,6 +190,32 @@ fn socket_addr_as_ptr(addr: SocketAddr) -> (*const sockaddr, socklen_t) {
             a as *const _ as *const _,
             mem::size_of_val(a) as libc::socklen_t,
         ),
+    }
+}
+
+
+unsafe fn ptr_to_socket_addr(
+    addr: *const libc::sockaddr,
+) -> io::Result<SocketAddr> {
+    match (*addr).sa_family as libc::c_int {
+        libc::AF_INET => {
+            let addr: &libc::sockaddr_in = &*(addr as *const libc::sockaddr_in);
+            let ip = Ipv4Addr::from(addr.sin_addr.s_addr.to_ne_bytes());
+            let port = u16::from_be(addr.sin_port);
+            Ok(SocketAddr::V4(SocketAddrV4::new(ip, port)))
+        }
+        libc::AF_INET6 => {
+            let addr: &libc::sockaddr_in6 = &*(addr as *const libc::sockaddr_in6);
+            let ip = Ipv6Addr::from(addr.sin6_addr.s6_addr);
+            let port = u16::from_be(addr.sin6_port);
+            Ok(SocketAddr::V6(SocketAddrV6::new(
+                ip,
+                port,
+                addr.sin6_flowinfo,
+                addr.sin6_scope_id,
+            )))
+        }
+        _ => Err(io::ErrorKind::InvalidInput.into()),
     }
 }
 

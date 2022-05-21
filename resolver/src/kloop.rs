@@ -30,7 +30,7 @@ pub struct CResolve {
 }
 
 #[repr(C)]
-pub struct UDPSend {
+pub struct UDPAction {
     _data: [u8; 0],
     _marker: marker::PhantomData<(*mut u8, marker::PhantomPinned)>,
 }
@@ -41,7 +41,7 @@ extern "C" {
     pub fn resolve_prep_addr(resolve: *const CResolve) -> *mut libc::sockaddr;
     pub fn resolve_done_cb(resolve: *const CResolve) -> libc::c_int;
     pub fn udp_bind(addr: *const libc::sockaddr, addrlen: libc::socklen_t) -> libc::c_int;
-    pub fn udp_send_init(fd: libc::c_int, resolver: *const CResolver) -> libc::c_ulong;
+    pub fn udp_action_init(fd: libc::c_int, resolver: *const CResolver) -> libc::c_ulong;
     pub fn udp_send_poll(
         send: libc::c_ulong,
         data: *const u8,
@@ -50,4 +50,12 @@ extern "C" {
         addrlen: libc::socklen_t,
         waker: *mut Waker,
     ) -> libc::c_int;
+    pub fn udp_recv_poll(
+        recv: libc::c_ulong,
+        data: *mut u8,
+        datalen: libc::size_t,
+        waker: *mut Waker,
+    ) -> libc::c_int;
+    pub fn udp_get_addr(action: libc::c_ulong) -> *const libc::sockaddr;
+    pub fn udp_action_free(action: libc::c_ulong);
 }
