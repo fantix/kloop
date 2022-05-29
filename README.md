@@ -1,5 +1,7 @@
 # kLoop
 
+[中文](README.zh.md)
+
 kLoop is an implementation of the Python
 [asyncio](https://docs.python.org/3/library/asyncio.html) event loop written
 in [Cython](https://cython.org/), using
@@ -47,6 +49,6 @@ Development and testing is done on Ubuntu 22.04.
 
 ## Architecture Diagram
 
-![architecture.png](architecture.png)
+![architecture.png](architecture.en.png)
 
 Looks like the Lucky Charms factory, says @aaronbrighton ...

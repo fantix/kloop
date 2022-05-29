@@ -1,6 +1,6 @@
 # kLoop
 
-[English](README.en.md)
+[English](README.md)
 
 kLoop 是一个 Python
 [asyncio](https://docs.python.org/3/library/asyncio.html)
@@ -43,6 +43,6 @@ kLoop 的源代码或发行版。
 
 ## 架构图
 
-![架构图.png](architecture.png)
+![架构图.png](architecture.zh.png)
 
 @aaronbrighton 说像 Lucky Charms 卡通麦片工厂……
