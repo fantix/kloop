@@ -52,3 +52,17 @@ Development and testing is done on Ubuntu 22.04.
 ![architecture.png](architecture.en.png)
 
 Looks like the Lucky Charms factory, says @aaronbrighton ...
+
+
+## Development
+
+### Ubuntu 22.04
+
+```bash
+sudo apt update
+sudo apt install gcc libssl-dev python3-dev python3.10-venv
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+python3 -m venv path/to/env
+source path/to/env/bin/activate
+pip install -e path/to/kloop
+```

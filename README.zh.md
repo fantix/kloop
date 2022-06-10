@@ -46,3 +46,17 @@ kLoop 的源代码或发行版。
 ![架构图.png](architecture.zh.png)
 
 @aaronbrighton 说像 Lucky Charms 卡通麦片工厂……
+
+
+## 开发
+
+### Ubuntu 22.04
+
+```bash
+sudo apt update
+sudo apt install gcc libssl-dev python3-dev python3.10-venv
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+python3 -m venv path/to/env
+source path/to/env/bin/activate
+pip install -e path/to/kloop
+```
