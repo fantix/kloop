@@ -28,8 +28,6 @@ use trust_dns_resolver::{AsyncResolver, Hosts};
 use crate::kloop::{resolve_done_cb, resolve_prep_addr, resolver_set, CResolve, CResolver};
 use crate::runtime::{KLoopHandle, KLoopRuntime};
 
-const DEFAULT_PORT: u16 = 53;
-
 type KLoopConnection = GenericConnection;
 
 type KLoopConnectionProvider = GenericConnectionProvider<KLoopRuntime>;
@@ -56,7 +54,7 @@ impl KLoopResolver {
         options.use_hosts_file = false;
         let conn_provider = GenericConnectionProvider::new(KLoopHandle);
         let mut resolver = AsyncResolver::new_with_conn(config, options, conn_provider).unwrap();
-        resolver.set_hosts(Some(Hosts::default().read_hosts_conf(hosts_conf)));
+        resolver.set_hosts(Some(Hosts::default().read_hosts_conf(hosts_conf)?));
         let pool = LocalPool::new();
         let spawner = pool.spawner();
         Ok(Self {
@@ -137,7 +135,7 @@ pub extern "C" fn resolver_init(
     let resolv_conf =
         unsafe { std::slice::from_raw_parts(resolv_conf_data, resolv_conf_data_size) };
     let hosts_conf = unsafe { std::slice::from_raw_parts(hosts_conf_data, hosts_conf_data_size) };
-    let mut resolver = match KLoopResolver::new(resolv_conf, hosts_conf, c_resolver) {
+    let resolver = match KLoopResolver::new(resolv_conf, hosts_conf, c_resolver) {
         Ok(resolver) => resolver,
         Err(e) => return 0,
     };

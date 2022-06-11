@@ -23,7 +23,6 @@ use std::pin::Pin;
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 use std::{io, mem};
-use futures_util::future::Ready;
 use trust_dns_proto::error::ProtoError;
 use trust_dns_proto::tcp::{Connect, DnsTcpStream};
 use trust_dns_proto::udp::UdpSocket;
@@ -106,6 +105,16 @@ pub struct KLoopUdp {
 #[async_trait]
 impl UdpSocket for KLoopUdp {
     type Time = KLoopTimer;
+
+    async fn connect(addr: SocketAddr) -> io::Result<Self> {
+        println!("TODO: KLoopUdp: connect({})", addr);
+        todo!()
+    }
+
+    async fn connect_with_bind(addr: SocketAddr, bind_addr: SocketAddr) -> io::Result<Self> {
+        println!("TODO: KLoopUdp: connect_with_bind({}, {})", addr, bind_addr);
+        todo!()
+    }
 
     async fn bind(addr: SocketAddr) -> io::Result<Self> {
         let (addr_ptr, addr_len) = socket_addr_as_ptr(addr);
