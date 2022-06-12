@@ -46,8 +46,8 @@ setup(
                 depends=[RESOLVER_LIB],
             ),
             Extension(
-                "kloop.ktls",
-                ["src/kloop/ktls.pyx"],
+                "kloop.tls",
+                ["src/kloop/tls.pyx"],
                 libraries=[
                     lib.strip().removeprefix("-l")
                     for lib in sysconfig.get_config_var("OPENSSL_LIBS").split()
