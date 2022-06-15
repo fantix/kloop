@@ -1,6 +1,6 @@
 include README*.md
 include Makefile
-include architecture.*.png
+recursive-include docs *.png *.md
 recursive-include src *.pyx *.pxd *.h
 include resolver/Cargo.toml
 include resolver/Cargo.lock

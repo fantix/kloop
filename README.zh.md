@@ -1,6 +1,10 @@
-# kLoop
+# kLoop：*Linux 内核上的 asyncio* <img src="docs/kloop@2x.png" height="80px" align="left">
 
-[English](README.md)
+[![English](https://img.shields.io/badge/英文-English-informational?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABsAAAAQCAYAAADnEwSWAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAG6ADAAQAAAABAAAAEAAAAACiF0fSAAABJUlEQVQ4EWP8//8/MwMDAysQEw0YGRl/EK0YWSHQsgogJgX8RNZPCpuJFMWUqqWrZSw4XBsCFL+FQ+4/DnEUYWC8gNKCEDB+X8MlgIKVWCJMD64ADwOorwmIHyNhdyDbFYgPAfFXIAaBV0CcCTIG5DNsLo0GKnDEYc8+oGsvQ+UEgLQMkrpYIDsSiJGjRxTInwY07wmuYCxDMgCdmQUUgFmGLheNLoDEzwG5gBFJgFQmNr3ZQEPsgfgImmEquHy2BajwHZpiGPcmjAGk0aPgCDCIp4HkgcHWA6RsQGwoEMEVZ9VATZdgqkig7yKp/YjEBjORIxJdjhw+3tIFVzCGAoPBEo9ta4E+f4NHHqsULstqsKpGCJ4BMkm2jNrBiHAOFhZdLQMA8pKhkQYZiokAAAAASUVORK5CYII=)](README.md)
+[![构建](https://img.shields.io/github/workflow/status/fantix/kloop/构建?label=构建&logo=github)](https://github.com/fantix/kloop/actions/workflows/build.yml)
+[![下载](https://img.shields.io/pypi/dm/kloop?logo=pypi&logoColor=white&label=下载)](https://pypi.python.org/pypi/gino)
+[![质量](https://img.shields.io/codacy/grade/f2e97d6eb2554e87b3cd15aae8f6b1e0?logo=codacy&label=质量)](https://app.codacy.com/gh/fantix/kloop/dashboard)
+[![许可](https://img.shields.io/badge/许可-木兰PSLv2-success?logo=opensourceinitiative&logoColor=white)](http://license.coscl.org.cn/MulanPSL2/)
 
 kLoop 是一个 Python
 [asyncio](https://docs.python.org/3/library/asyncio.html)
@@ -43,7 +47,7 @@ kLoop 的源代码或发行版。
 
 ## 架构图
 
-![架构图.png](architecture.zh.png)
+<img src="docs/architecture.zh.png" width="620px" alt="架构图.png">
 
 @aaronbrighton 说像 Lucky Charms 卡通麦片工厂……
 
