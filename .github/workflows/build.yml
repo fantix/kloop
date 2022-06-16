@@ -1,0 +1,32 @@
+name: 构建
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: 获取源代码
+      uses: actions/checkout@v3
+    - name: 安装 Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.10'
+    - name: 安装依赖关系
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install build
+    - name: 构建软件包
+      run: python -m build
+    - name: 上传源码包
+      uses: actions/upload-artifact@v3
+      with:
+        name: kLoop 源码包
+        path: dist/*.tar.gz
+    - name: 上传 wheel 安装包
+      uses: actions/upload-artifact@v3
+      with:
+        name: kLoop wheel 安装包
+        path: dist/*.whl
