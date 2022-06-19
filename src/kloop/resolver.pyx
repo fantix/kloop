@@ -116,6 +116,9 @@ cdef class Resolver:
     cdef init_cb(self):
         cdef int res = self.resolver.res
 
+        if self.waiter.done():
+            return
+
         if res < 0:
             try:
                 errno.errno = -res
@@ -128,7 +131,8 @@ cdef class Resolver:
     cdef err_cb(self, exc):
         waiter, self.waiter = self.waiter, None
         if waiter is not None:
-            waiter.set_exception(exc)
+            if not waiter.done():
+                waiter.set_exception(exc)
 
     async def lookup_ip(self, host, port):
         await self.ensure_initialized()

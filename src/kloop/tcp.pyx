@@ -9,13 +9,54 @@
 # See the Mulan PSL v2 for more details.
 
 
-cdef int tcp_connect(TCPConnect* connector) nogil:
-    return ring_sq_submit_connect(
-        &connector.loop.ring.sq,
-        connector.fd,
-        connector.addr,
-        &connector.ring_cb,
-    )
+async def tcp_connect(KLoopImpl loop, host, port):
+    cdef:
+        Resolve resolve
+        TCPConnect connector
+        int fd, res
+        libc.sockaddr * addr
+        Handle handle
+        size_t i
+
+    resolve = await loop.resolver.lookup_ip(host, port)
+    if not resolve.r.result_len:
+        raise RuntimeError(f"Cannot resolve host: {host!r}")
+
+    connector.loop = &loop.loop
+    connector.ring_cb.callback = tcp_connect_cb
+    connector.ring_cb.data = &connector
+
+    exceptions = []
+    for i in range(resolve.r.result_len):
+        addr = resolve.r.result + i
+        fd = libc.socket(addr.sa_family, libc.SOCK_STREAM, 0)
+        if fd == -1:
+            raise IOError("Cannot create socket")
+
+        try:
+            waiter = loop.create_future()
+            handle = Handle(waiter.set_result, (None,), loop, None)
+            connector.cb = &handle.cb
+
+            if not ring_sq_submit_connect(
+                    &loop.loop.ring.sq,
+                    fd,
+                    addr,
+                    &connector.ring_cb,
+            ):
+                raise ValueError("Submission queue is full!")
+
+            await waiter
+
+            res = abs(connector.ring_cb.res)
+            if res != 0:
+                raise IOError(res, string.strerror(res))
+            return fd
+
+        except Exception as e:
+            os.close(fd)
+            exceptions.append(e)
+    raise exceptions[0]
 
 
 cdef int tcp_connect_cb(RingCallback* cb) nogil except 0:
@@ -25,50 +66,13 @@ cdef int tcp_connect_cb(RingCallback* cb) nogil except 0:
 
 cdef class TCPTransport:
     @staticmethod
-    cdef TCPTransport new(object protocol_factory, KLoopImpl loop):
+    cdef TCPTransport new(int fd, object protocol, KLoopImpl loop):
         cdef TCPTransport rv = TCPTransport.__new__(TCPTransport)
-        rv.protocol_factory = protocol_factory
+        rv.fd = fd
+        rv.protocol = protocol
         rv.loop = loop
-        rv.connector.loop = &loop.loop
-        rv.connector.ring_cb.callback = tcp_connect_cb
-        rv.connector.ring_cb.data = &rv.connector
+        loop.call_soon(protocol.connection_made, rv)
         return rv
-
-    cdef connect(self, libc.sockaddr* addr):
-        cdef:
-            int fd
-            TCPConnect* c = &self.connector
-
-        fd = libc.socket(addr.sa_family, libc.SOCK_STREAM, 0)
-        if fd == -1:
-            PyErr_SetFromErrno(IOError)
-            return
-        c.addr = addr
-        c.fd = self.fd = fd
-        self.handle = Handle(self.connect_cb, (self,), self.loop, None)
-        c.cb = &self.handle.cb
-        if not tcp_connect(c):
-            raise ValueError("Submission queue is full!")
-        self.waiter = self.loop.create_future()
-        return self.waiter
-
-    cdef connect_cb(self):
-        if self.connector.ring_cb.res != 0:
-            if not ring_sq_submit_close(
-                &self.loop.loop.ring.sq, self.fd, NULL
-            ):
-                # TODO: fd not closed?
-                pass
-            try:
-                errno.errno = abs(self.connector.ring_cb.res)
-                PyErr_SetFromErrno(IOError)
-            except IOError as e:
-                self.waiter.set_exception(e)
-            return
-
-        protocol = self.protocol_factory()
-        self.waiter.set_result(protocol)
-        self.loop.call_soon(protocol.connection_made, self)
 
     def get_extra_info(self, x):
         return None

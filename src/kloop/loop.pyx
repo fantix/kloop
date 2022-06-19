@@ -514,24 +514,11 @@ cdef class KLoopImpl:
         interleave=None,
     ):
         cdef:
-            TCPTransport transport
-            Resolve resolve
-            object waiter
-            size_t i
+            int fd
 
-        resolve = await self.resolver.lookup_ip(host, port)
-        if not resolve.r.result_len:
-            raise RuntimeError(f"Cannot resolve host: {host!r}")
-
-        transport = TCPTransport.new(protocol_factory, self)
-        exceptions = []
-        for i in range(resolve.r.result_len):
-            try:
-                waiter = transport.connect(resolve.r.result + i)
-                return transport, await waiter
-            except OSError as e:
-                exceptions.append(e)
-        raise exceptions[0]
+        fd = await tcp_connect(self, host, port)
+        protocol = protocol_factory()
+        return TCPTransport.new(fd, protocol, self), protocol
 
 
 class KLoop(KLoopImpl, asyncio.AbstractEventLoop):

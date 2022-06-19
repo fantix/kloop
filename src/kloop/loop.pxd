@@ -43,6 +43,7 @@ cdef class KLoopImpl:
         bint closed
         object thread_id
         Loop loop
+        Resolver resolver
 
     cpdef create_future(self)
     cdef inline check_closed(self)
