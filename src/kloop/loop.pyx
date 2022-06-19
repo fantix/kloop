@@ -516,9 +516,20 @@ cdef class KLoopImpl:
         cdef:
             int fd
 
+        if ssl is False:
+            ssl = None
+        elif ssl is not None:
+            from . import tls
+            if ssl is True:
+                import ssl as ssl_mod
+                ssl = ssl_mod.create_default_context()
         fd = await tcp_connect(self, host, port)
         protocol = protocol_factory()
-        return TCPTransport.new(fd, protocol, self), protocol
+        if ssl is not None:
+            transport = tls.TLSTransport.new(fd, protocol, self, ssl)
+        else:
+            transport = TCPTransport.new(fd, protocol, self)
+        return transport, protocol
 
 
 class KLoop(KLoopImpl, asyncio.AbstractEventLoop):

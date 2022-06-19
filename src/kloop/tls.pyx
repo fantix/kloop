@@ -63,52 +63,61 @@ cdef long bio_ctrl(bio.BIO* b, int cmd, long num, void* ptr) nogil:
 
 
 cdef int bio_create(bio.BIO* b) nogil:
-    cdef BIO* obj = <BIO*>PyMem_RawMalloc(sizeof(BIO))
-    if obj == NULL:
-        return 0
-    string.memset(obj, 0, sizeof(BIO))
-    bio.set_data(b, <void*>obj)
     bio.set_init(b, 1)
     return 1
 
 
 cdef int bio_destroy(bio.BIO* b) nogil:
-    cdef void* obj = bio.get_data(b)
-    if obj != NULL:
-        PyMem_RawFree(obj)
     bio.set_shutdown(b, 1)
     return 1
 
 
-cdef object wrap_bio(
-    bio.BIO* b,
-    object ssl_context,
-    bint server_side=False,
-    object server_hostname=None,
-    object session=None,
-):
-    cdef pyssl.PySSLMemoryBIO* c_bio
-    py_bio = ssl.MemoryBIO()
-    c_bio = <pyssl.PySSLMemoryBIO*>py_bio
-    c_bio.bio, b = b, c_bio.bio
-    rv = ssl_context.wrap_bio(
-        py_bio, py_bio, server_side, server_hostname, session
-    )
-    c_bio.bio, b = b, c_bio.bio
-    ssl_h.set_options(
-        (<pyssl.PySSLSocket*>rv._sslobj).ssl, ssl_h.OP_ENABLE_KTLS
-    )
-    return rv
+cdef class TLSTransport:
+    @staticmethod
+    def new(
+        int fd,
+        protocol,
+        KLoopImpl loop,
+        sslctx,
+        server_side=False,
+        server_hostname=None,
+        session=None,
+    ):
+        cdef:
+            TLSTransport rv = TLSTransport.__new__(TLSTransport)
+            pyssl.PySSLMemoryBIO* c_bio
 
+        py_bio = ssl.MemoryBIO()
+        c_bio = <pyssl.PySSLMemoryBIO*>py_bio
+        c_bio.bio, rv.bio = rv.bio, c_bio.bio
+        try:
+            rv.sslobj = sslctx.wrap_bio(
+                py_bio, py_bio, server_side, server_hostname, session
+            )
+        finally:
+            c_bio.bio, rv.bio = rv.bio, c_bio.bio
+            del py_bio
 
-def test():
-    cdef BIO* b
-    with nogil:
-        b = bio.new(KTLS_BIO_METHOD)
-    if b == NULL:
-        raise fromOpenSSLError(RuntimeError)
-    ctx = ssl.create_default_context()
-    return wrap_bio(b, ctx)
+        ssl_h.set_options(
+            (<pyssl.PySSLSocket*>rv.sslobj).ssl, ssl_h.OP_ENABLE_KTLS
+        )
+        rv.fd = fd
+        rv.protocol = protocol
+        rv.loop = loop
+        rv.sslctx = sslctx
+
+        try:
+            rv.sslobj.do_handshake()
+        except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
+            pass
+        return rv
+
+    def __cinit__(self):
+        self.bio = bio.new(KTLS_BIO_METHOD)
+        bio.set_data(self.bio, <void*>self)
+
+    def __dealloc__(self):
+        bio.free(self.bio)
 
 
 cdef bio.Method* KTLS_BIO_METHOD = bio.meth_new(

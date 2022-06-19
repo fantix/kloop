@@ -9,5 +9,15 @@
 # See the Mulan PSL v2 for more details.
 
 
-cdef struct BIO:
-    int data
+from .includes.openssl cimport bio
+from .loop cimport KLoopImpl
+
+
+cdef class TLSTransport:
+    cdef:
+        KLoopImpl loop
+        int fd
+        bio.BIO* bio
+        object protocol
+        object sslctx
+        object sslobj

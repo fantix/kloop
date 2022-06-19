@@ -38,9 +38,9 @@ class TestLoop(unittest.TestCase):
 
     def test_connect(self):
         ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+        # ctx.check_hostname = False
+        # ctx.verify_mode = ssl.CERT_NONE
+        # ctx.minimum_version = ssl.TLSVersion.TLSv1_3
         host = "www.google.com"
         r, w = self.loop.run_until_complete(
             # asyncio.open_connection("127.0.0.1", 8080, ssl=ctx)
