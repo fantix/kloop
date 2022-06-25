@@ -95,7 +95,7 @@ cdef int ring_uninit(Ring* ring) nogil except 0:
     return 1
 
 
-cdef inline unsigned ring_sq_flush(SubmissionQueue* sq) nogil:
+cdef inline int ring_sq_flush(SubmissionQueue* sq) nogil:
     cdef:
         unsigned mask = sq.kring_mask[0]
         unsigned tail = sq.ktail[0]
@@ -108,20 +108,23 @@ cdef inline unsigned ring_sq_flush(SubmissionQueue* sq) nogil:
             sq.sqe_head += 1
             to_submit -= 1
         atomic.store_explicit(<atomic.uint*>sq.ktail, tail, atomic.release)
-    return tail - sq.khead[0]
+        return 1
+    else:
+        return 0
 
 
 cdef int ring_select(Ring* ring, long long timeout) nogil except -1:
     cdef:
         int flags = linux.IORING_ENTER_EXT_ARG
         bint need_enter = 0
-        unsigned submit, ready
+        unsigned ready
         unsigned wait_nr = 0
         linux.io_uring_getevents_arg arg
         linux.__kernel_timespec ts
         CompletionQueue* cq = &ring.cq
         SubmissionQueue* sq = &ring.sq
 
+    string.memset(&arg, 0, sizeof(arg))
     # Call enter if we have no CQE ready and timeout is not 0, or else we
     # handle the ready CQEs first.
     ready = atomic.load_explicit(
@@ -138,8 +141,7 @@ cdef int ring_select(Ring* ring, long long timeout) nogil except -1:
 
     # Flush the submission queue, and only wakeup the SQ polling thread if
     # there is something for the kernel to handle.
-    submit = ring_sq_flush(sq)
-    if submit:
+    if ring_sq_flush(sq):
         atomic.thread_fence(atomic.seq_cst)
         if atomic.load_explicit(
             <atomic.uint*>sq.kflags, atomic.relaxed
@@ -154,7 +156,7 @@ cdef int ring_select(Ring* ring, long long timeout) nogil except -1:
         if libc.syscall(
             libc.SYS_io_uring_enter,
             ring.enter_ring_fd,
-            submit,
+            0,
             wait_nr,
             flags,
             &arg,
@@ -163,7 +165,7 @@ cdef int ring_select(Ring* ring, long long timeout) nogil except -1:
             if errno.errno != errno.ETIME:
                 with gil:
                     PyErr_SetFromErrno(IOError)
-                    return -1
+                return -1
 
         ready = atomic.load_explicit(
             <atomic.uint*>cq.ktail, atomic.acquire
@@ -295,6 +297,7 @@ cdef int ring_sq_submit_close(
         callback,
     ) else 0
 
+
 cdef int ring_sq_submit_sendmsg(
     SubmissionQueue* sq,
     int fd,
@@ -312,11 +315,12 @@ cdef int ring_sq_submit_sendmsg(
         callback,
     ) else 0
 
+
 cdef int ring_sq_submit_recvmsg(
-        SubmissionQueue* sq,
-        int fd,
-        const libc.msghdr *msg,
-        RingCallback* callback,
+    SubmissionQueue* sq,
+    int fd,
+    const libc.msghdr *msg,
+    RingCallback* callback,
 ) nogil:
     return 1 if ring_sq_submit(
         sq,
