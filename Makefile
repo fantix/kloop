@@ -1,15 +1,23 @@
-.PHONY: build dev clean
+.PHONY: dist dev build clean
 .DEFAULT_GOAL := dev
 
 
-build:
+# Make distribution tarballs
+dist:
 	pip install -U build
 	python -m build
 
 
+# Incrementally build for development
 dev:
-	pip install -Ue .
+	KLOOP_DEBUG=1 python setup.py develop
 
 
+# Always build for development
+build:
+	KLOOP_FORCE=1 KLOOP_DEBUG=1 python setup.py develop
+
+
+# Clean up everything including the Rust build cache
 clean:
-	git clean -Xfd -e "!/*.code-workspace" -e "!/*.vscode" -e "!/*.idea" -e "!/*.python-version"
+	python setup.py clean --all

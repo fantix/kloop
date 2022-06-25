@@ -62,5 +62,6 @@ sudo apt install gcc libssl-dev python3-dev python3.10-venv
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 python3 -m venv path/to/env
 source path/to/env/bin/activate
-pip install -e path/to/kloop
+pip install cython
+KLOOP_DEBUG=1 python setup.py develop  # 或者直接执行 `make`
 ```
