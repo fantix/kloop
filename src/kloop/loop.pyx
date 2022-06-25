@@ -526,7 +526,9 @@ cdef class KLoopImpl:
         fd = await tcp_connect(self, host, port)
         protocol = protocol_factory()
         if ssl is not None:
-            transport = tls.TLSTransport.new(fd, protocol, self, ssl)
+            waiter = self.create_future()
+            transport = tls.TLSTransport.new(fd, protocol, self, ssl, waiter=waiter)
+            await waiter
         else:
             transport = TCPTransport.new(fd, protocol, self)
         return transport, protocol

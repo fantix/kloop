@@ -56,3 +56,19 @@ cdef struct RingCallback:
     void* data
     int res
     int (*callback)(RingCallback* cb) nogil except 0
+
+
+cdef int ring_sq_submit_sendmsg(
+    SubmissionQueue* sq,
+    int fd,
+    const libc.msghdr *msg,
+    RingCallback* callback,
+) nogil
+
+
+cdef int ring_sq_submit_recvmsg(
+    SubmissionQueue* sq,
+    int fd,
+    const libc.msghdr *msg,
+    RingCallback* callback,
+) nogil

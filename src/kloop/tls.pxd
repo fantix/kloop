@@ -9,8 +9,32 @@
 # See the Mulan PSL v2 for more details.
 
 
+from cpython cimport PyObject
+from .includes cimport libc
 from .includes.openssl cimport bio
-from .loop cimport KLoopImpl
+from .loop cimport KLoopImpl, Loop, RingCallback
+
+
+cdef struct Proxy:
+    PyObject* transport
+    libc.iovec send_vec
+    libc.msghdr send_msg
+    RingCallback send_callback
+    libc.iovec recv_vec
+    libc.msghdr recv_msg
+    RingCallback recv_callback
+    unsigned char flags
+    char* read_buffer
+
+    Loop* loop
+    int fd
+
+
+cdef enum State:
+    UNWRAPPED
+    HANDSHAKING
+    WRAPPED
+    WRAPPED_KTLS
 
 
 cdef class TLSTransport:
@@ -21,3 +45,14 @@ cdef class TLSTransport:
         object protocol
         object sslctx
         object sslobj
+        object waiter
+        Proxy proxy
+        State state
+        object write_buffer
+        bint sending
+
+    cdef do_handshake(self)
+    cdef do_read(self)
+    cdef do_read_ktls(self)
+    cdef write_cb(self, int res)
+    cdef read_cb(self, int res)

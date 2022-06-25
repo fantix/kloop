@@ -84,5 +84,11 @@ cdef extern from "openssl/bio.h" nogil:
     void set_init "BIO_set_init" (BIO* a, int init)
     void set_shutdown "BIO_set_shutdown" (BIO* a, int shut)
 
-    void set_retry_read "BIO_set_retry_read" (BIO *b)
-    void set_retry_write "BIO_set_retry_write" (BIO *b)
+    void set_retry_read "BIO_set_retry_read" (BIO* b)
+    void set_retry_write "BIO_set_retry_write" (BIO* b)
+    void clear_retry_flags "BIO_clear_retry_flags" (BIO *b)
+
+    cdef int FLAGS_IN_EOF "BIO_FLAGS_IN_EOF"
+
+    int test_flags "BIO_test_flags" (BIO* b, int flags)
+    void set_flags "BIO_set_flags" (BIO *b, int flags)
