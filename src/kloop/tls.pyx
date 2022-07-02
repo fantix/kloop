@@ -45,7 +45,6 @@ cdef unsigned char FLAGS_PROXY_RECV_ALL = (
 )
 
 cdef size_t CMSG_SIZE = libc.CMSG_SPACE(sizeof(unsigned char))
-DEF DEBUG = 0
 
 
 cdef inline void reset_msg(libc.msghdr* msg, void* cmsg) nogil:

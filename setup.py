@@ -36,6 +36,14 @@ class build_ext_with_resolver(build_ext):
             self.force = os.getenv("KLOOP_FORCE", "0") == "1"
 
         for ext in self.distribution.ext_modules:
+            if ext.cython_directives:
+                ext.cython_directives["language_level"] = "3"
+            else:
+                ext.cython_directives = {"language_level": "3"}
+            if ext.cython_compile_time_env:
+                ext.cython_compile_time_env["DEBUG"] = self.debug
+            else:
+                ext.cython_compile_time_env = {"DEBUG": self.debug}
             if self.debug:
                 if "-O0" not in ext.extra_compile_args:
                     ext.extra_compile_args.append("-O0")
@@ -48,10 +56,6 @@ class build_ext_with_resolver(build_ext):
                     ext.extra_link_args.append(resolver)
                 if resolver not in ext.depends:
                     ext.depends.append(resolver)
-
-        self.distribution.ext_modules = cythonize(
-            self.distribution.ext_modules, language_level="3",
-        )
 
         super().finalize_options()
 
@@ -118,22 +122,16 @@ setup(
             ],
             include_dirs=[
                 d.strip().removeprefix("-I")
-                for d in sysconfig.get_config_var(
-                    "OPENSSL_INCLUDES"
-                ).split()
+                for d in sysconfig.get_config_var("OPENSSL_INCLUDES").split()
             ],
             library_dirs=[
                 d.strip().removeprefix("-L")
-                for d in sysconfig.get_config_var(
-                    "OPENSSL_LDFLAGS"
-                ).split()
+                for d in sysconfig.get_config_var("OPENSSL_LDFLAGS").split()
                 if d.strip().startswith("-L")
             ],
             extra_link_args=[
                 d.strip()
-                for d in sysconfig.get_config_var(
-                    "OPENSSL_LDFLAGS"
-                ).split()
+                for d in sysconfig.get_config_var("OPENSSL_LDFLAGS").split()
                 if not d.strip().startswith("-L")
             ],
             runtime_library_dirs=(lambda x: [x] if x else [])(
