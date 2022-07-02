@@ -168,7 +168,11 @@ cdef int bio_read_ex(
             return 0
 
     bio.clear_retry_flags(b)
-    if proxy.flags & FLAGS_PROXY_RECV_KTLS:
+    if (
+        proxy.flags & FLAGS_PROXY_RECV_KTLS and
+        proxy.flags & FLAGS_PROXY_RECV_COMPLETED
+    ):
+        proxy.flags &= ~FLAGS_PROXY_RECV_ALL
         res = proxy.recv_callback.res
         if datal < res + 5:
             IF DEBUG:
@@ -244,7 +248,15 @@ cdef int bio_read_ex(
         bio.set_retry_read(b)
         readbytes[0] = 0
         if not proxy.flags & FLAGS_PROXY_RECV_SUBMITTED:
-            if is_ktls:
+            if proxy.flags & FLAGS_PROXY_RECV_KTLS:
+                reset_msg(&proxy.recv_msg, proxy.cmsg)
+                IF DEBUG:
+                    with gil:
+                        print("bio_read_ex() submit(%x, %d)" % (
+                            <long long>proxy.recv_vec.iov_base,
+                            proxy.recv_vec.iov_len,
+                        ))
+            elif is_ktls:
                 if datal < 21:
                     IF DEBUG:
                         with gil:
@@ -505,6 +517,7 @@ cdef class TLSTransport:
                         if record_type != ssl_h.SSL3_RT_APPLICATION_DATA:
                             IF DEBUG:
                                 print("do_read_ktls() forward CMSG")
+                            self.proxy.flags |= FLAGS_PROXY_RECV_COMPLETED
                             return self.do_read()
                 IF DEBUG:
                     print("do_read_ktls() received", res, "bytes")
@@ -557,10 +570,14 @@ cdef class TLSTransport:
                 self.loop.call_soon(self.protocol.connection_lost, None)
 
     cdef write_cb(self, int res):
+        IF DEBUG:
+            print("write_cb", res, "state:", self.state)
         if self.state == HANDSHAKING:
             self.do_handshake()
 
     cdef read_cb(self, int res):
+        IF DEBUG:
+            print("read_cb", res, "state:", self.state)
         if self.state == HANDSHAKING:
             self.do_handshake()
         elif self.state == WRAPPED:
