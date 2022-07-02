@@ -25,6 +25,7 @@ cdef struct Proxy:
     RingCallback recv_callback
     unsigned char flags
     char* read_buffer
+    void* cmsg
 
     Loop* loop
     int fd
@@ -50,6 +51,7 @@ cdef class TLSTransport:
         State state
         object write_buffer
         bint sending
+
 
     cdef do_handshake(self)
     cdef do_read(self)

@@ -20,6 +20,11 @@ cdef extern from "openssl/ssl.h" nogil:
     int OP_ENABLE_KTLS "SSL_OP_ENABLE_KTLS"
     int set_options "SSL_set_options" (SSL* ssl, int options)
 
+    long SSL_MODE_RELEASE_BUFFERS
+    long SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER
+    long clear_mode "SSL_clear_mode" (SSL* ssl, long mode)
+    int free_buffers "SSL_free_buffers" (SSL *ssl)
+
 
 cdef extern from *:
     """
