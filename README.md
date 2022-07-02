@@ -45,8 +45,8 @@ kLoop is open-sourced and released under the
 
 * Python >= 3.10
 * Linux >= 5.11 (enable kTLS with `modprobe tls`)
-* OpenSSL >= 3.0 (kTLS receive offloading requires the latest development
-  version)
+* OpenSSL >= 3.0 (kTLS receive offloading on TLS 1.3 requires the latest
+  development version)
 
 Development and testing is done on Ubuntu 22.04.
 
