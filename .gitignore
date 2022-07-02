@@ -6,4 +6,5 @@
 /tests/**/__pycache__/
 /src/**/*.c
 /src/**/*.so
-/src/kloop.egg-info/
+/src/kLoop.egg-info/
+/resolver/target/
