@@ -77,6 +77,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 
 [[package]]
+name = "bytemuck"
+version = "1.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8efb64bd706a16a1bdde310ae86b351e4d21550d98d056f22f8a7f7a2183fec"
+
+[[package]]
 name = "bytes"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -126,7 +132,7 @@ dependencies = [
 [[package]]
 name = "compio"
 version = "0.18.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=92127da50b383be53f7a5364ee818bf3952ac17f#92127da50b383be53f7a5364ee818bf3952ac17f"
+source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
 dependencies = [
  "compio-buf",
  "compio-driver",
@@ -140,7 +146,7 @@ dependencies = [
 [[package]]
 name = "compio-buf"
 version = "0.8.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=92127da50b383be53f7a5364ee818bf3952ac17f#92127da50b383be53f7a5364ee818bf3952ac17f"
+source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -150,24 +156,23 @@ dependencies = [
 [[package]]
 name = "compio-driver"
 version = "0.11.1"
-source = "git+https://github.com/compio-rs/compio.git?rev=92127da50b383be53f7a5364ee818bf3952ac17f#92127da50b383be53f7a5364ee818bf3952ac17f"
+source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
 dependencies = [
  "bitflags",
  "cfg-if",
  "cfg_aliases",
  "compio-buf",
  "compio-log",
+ "compio-send-wrapper",
  "crossbeam-queue",
  "flume",
  "futures-util",
  "io-uring",
- "io_uring_buf_ring",
  "libc",
+ "nix",
  "once_cell",
- "paste",
- "pin-project-lite",
+ "pastey",
  "polling",
- "slab",
  "smallvec",
  "socket2",
  "synchrony",
@@ -176,20 +181,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "compio-executor"
+version = "0.1.0"
+source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
+dependencies = [
+ "compio-log",
+ "compio-send-wrapper",
+ "crossfire",
+ "slotmap",
+]
+
+[[package]]
 name = "compio-io"
 version = "0.9.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=92127da50b383be53f7a5364ee818bf3952ac17f#92127da50b383be53f7a5364ee818bf3952ac17f"
+source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
 dependencies = [
+ "bytemuck",
+ "cfg-if",
  "compio-buf",
  "futures-util",
- "paste",
+ "libc",
+ "pastey",
+ "pin-project-lite",
  "synchrony",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
 name = "compio-log"
 version = "0.1.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=92127da50b383be53f7a5364ee818bf3952ac17f#92127da50b383be53f7a5364ee818bf3952ac17f"
+source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
 dependencies = [
  "tracing",
 ]
@@ -197,7 +218,7 @@ dependencies = [
 [[package]]
 name = "compio-net"
 version = "0.11.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=92127da50b383be53f7a5364ee818bf3952ac17f#92127da50b383be53f7a5364ee818bf3952ac17f"
+source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
 dependencies = [
  "cfg-if",
  "compio-buf",
@@ -205,6 +226,7 @@ dependencies = [
  "compio-io",
  "compio-runtime",
  "either",
+ "futures-util",
  "libc",
  "once_cell",
  "socket2",
@@ -245,7 +267,7 @@ dependencies = [
 [[package]]
 name = "compio-quic"
 version = "0.7.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=92127da50b383be53f7a5364ee818bf3952ac17f#92127da50b383be53f7a5364ee818bf3952ac17f"
+source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
 dependencies = [
  "cfg_aliases",
  "compio-buf",
@@ -267,30 +289,33 @@ dependencies = [
 [[package]]
 name = "compio-runtime"
 version = "0.11.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=92127da50b383be53f7a5364ee818bf3952ac17f#92127da50b383be53f7a5364ee818bf3952ac17f"
+source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
 dependencies = [
- "async-task",
  "cfg-if",
  "compio-buf",
  "compio-driver",
+ "compio-executor",
  "compio-log",
+ "compio-send-wrapper",
  "core_affinity",
- "crossbeam-queue",
  "futures-util",
  "libc",
- "once_cell",
  "pin-project-lite",
  "scoped-tls",
- "slab",
- "socket2",
  "synchrony",
  "windows-sys 0.61.2",
 ]
 
 [[package]]
+name = "compio-send-wrapper"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4b20d9264c5c445ffee1c773b1d5ce7461fea060944424d126ac0853126edf2"
+
+[[package]]
 name = "compio-tls"
 version = "0.9.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=92127da50b383be53f7a5364ee818bf3952ac17f#92127da50b383be53f7a5364ee818bf3952ac17f"
+source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
 dependencies = [
  "compio-buf",
  "compio-io",
@@ -303,7 +328,7 @@ dependencies = [
 [[package]]
 name = "compio-ws"
 version = "0.3.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=92127da50b383be53f7a5364ee818bf3952ac17f#92127da50b383be53f7a5364ee818bf3952ac17f"
+source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
 dependencies = [
  "compio-buf",
  "compio-io",
@@ -362,6 +387,18 @@ name = "crossbeam-utils"
 version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
+
+[[package]]
+name = "crossfire"
+version = "3.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0042e53977a94d5d10de04ce7eb6016aa212c08e83ea202f7a9f102ff104303"
+dependencies = [
+ "crossbeam-utils",
+ "futures-core",
+ "parking_lot",
+ "smallvec",
+]
 
 [[package]]
 name = "crypto-common"
@@ -521,6 +558,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "generator"
+version = "0.8.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52f04ae4152da20c76fe800fa48659201d5cf627c5149ca0b707b69d7eef6cf9"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "libc",
+ "log",
+ "rustversion",
+ "windows-link",
+ "windows-result",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -616,17 +668,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "io_uring_buf_ring"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1838759bb8c2f24cf05a35429d83145c4aa6af43f8ad38477295e12a7320a80e"
-dependencies = [
- "bytes",
- "io-uring",
- "rustix",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -692,6 +733,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
+name = "loom"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "419e0dc8046cb947daa77eb95ae174acfbddb7673b4151f56d1eed8e93fbfaca"
+dependencies = [
+ "cfg-if",
+ "generator",
+ "pin-utils",
+ "scoped-tls",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "lru-slab"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -711,6 +766,18 @@ name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
+
+[[package]]
+name = "nix"
+version = "0.31.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d6d0705320c1e6ba1d912b5e37cf18071b6c2e9b7fa8215a1e8a7651966f5d3"
+dependencies = [
+ "bitflags",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
+]
 
 [[package]]
 name = "no-std-compat"
@@ -744,10 +811,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
-name = "paste"
-version = "1.0.15"
+name = "parking_lot"
+version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
+dependencies = [
+ "lock_api",
+ "parking_lot_core",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.9.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "redox_syscall",
+ "smallvec",
+ "windows-link",
+]
+
+[[package]]
+name = "pastey"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b867cad97c0791bbd3aaa6472142568c6c9e8f71937e98379f584cfb0cf35bec"
 
 [[package]]
 name = "pbkdf2"
@@ -793,6 +883,12 @@ name = "pin-project-lite"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b3cff922bd51709b605d9ead9aa71031d81447142d828eb4a6eba76fe619f9b"
+
+[[package]]
+name = "pin-utils"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pkcs5"
@@ -989,6 +1085,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "redox_syscall"
+version = "0.5.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
+dependencies = [
+ "bitflags",
+]
+
+[[package]]
 name = "regex-automata"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1176,6 +1281,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
+name = "slotmap"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bdd58c3c93c3d278ca835519292445cb4b0d4dc59ccfdf7ceadaab3f8aeb4038"
+dependencies = [
+ "version_check",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1229,13 +1343,14 @@ dependencies = [
 
 [[package]]
 name = "synchrony"
-version = "0.1.4"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86246561e65786098f4dbe4d95bd7550ec541ff83921ab878e3b51c615735673"
+checksum = "c174d82fd56da8214ec095cfe4568e59e5ccb49d060e70c2f98e3ba352b23e45"
 dependencies = [
  "event-listener",
  "futures-util",
  "local-event",
+ "loom",
 ]
 
 [[package]]
@@ -1246,9 +1361,12 @@ checksum = "b1dd07eb858a2067e2f3c7155d54e929265c264e6f37efe3ee7a8d1b5a1dd0ba"
 
 [[package]]
 name = "thin-cell"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4164c6c316ba9733b0ab021e7f9852c788a4b991b49c25820f1be48e1d41345b"
+checksum = "7aa3372b7ae046fe560e0b4bc1312f5ad17adaea11a1cf45d5ca30664e3e50f1"
+dependencies = [
+ "synchrony",
+]
 
 [[package]]
 name = "thiserror"
@@ -1345,9 +1463,9 @@ dependencies = [
 
 [[package]]
 name = "tungstenite"
-version = "0.28.0"
+version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8628dcc84e5a09eb3d8423d6cb682965dea9133204e8fb3efee74c2a0c259442"
+checksum = "6c01152af293afb9c7c2a57e4b559c5620b421f6d133261c60dd2d0cdb38e6b8"
 dependencies = [
  "bytes",
  "data-encoding",
@@ -1359,7 +1477,6 @@ dependencies = [
  "rustls-pki-types",
  "sha1",
  "thiserror",
- "utf-8",
 ]
 
 [[package]]
@@ -1379,12 +1496,6 @@ name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
-
-[[package]]
-name = "utf-8"
-version = "0.7.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
 
 [[package]]
 name = "valuable"
@@ -1501,6 +1612,15 @@ name = "windows-link"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
+
+[[package]]
+name = "windows-result"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7781fa89eaf60850ac3d2da7af8e5242a5ea78d1a11c49bf2910bb5a73853eb5"
+dependencies = [
+ "windows-link",
+]
 
 [[package]]
 name = "windows-sys"

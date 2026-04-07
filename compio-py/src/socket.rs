@@ -8,7 +8,7 @@ use std::{
 };
 
 use compio::{
-    buf::{BufResult, IntoInner, IoBuf, IoBufMut, buf_try},
+    buf::{BufResult, IntoInner, IoBuf, IoBufMut, IoVectoredBufMut, buf_try},
     driver::{
         AsRawFd, ToSharedFd, impl_raw_fd,
         op::{BufResultExt, CloseSocket, Connect, Recv, Send, ShutdownSocket},
@@ -306,14 +306,14 @@ pub struct SocketStream {
     inner: Socket,
 }
 
-impl AsyncRead for SocketStream {
+impl AsyncRead for &SocketStream {
     #[inline]
     async fn read<B: IoBufMut>(&mut self, buf: B) -> BufResult<usize, B> {
         self.inner.recv(buf, 0).await
     }
 }
 
-impl AsyncWrite for SocketStream {
+impl AsyncWrite for &SocketStream {
     async fn write<T: IoBuf>(&mut self, buf: T) -> BufResult<usize, T> {
         self.inner.send(buf, 0).await
     }
@@ -324,6 +324,32 @@ impl AsyncWrite for SocketStream {
 
     async fn shutdown(&mut self) -> io::Result<()> {
         self.inner.shutdown(Shutdown::Write).await
+    }
+}
+
+impl AsyncRead for SocketStream {
+    #[inline]
+    async fn read<B: IoBufMut>(&mut self, buf: B) -> BufResult<usize, B> {
+        (&*self).read(buf).await
+    }
+
+    #[inline]
+    async fn read_vectored<V: IoVectoredBufMut>(&mut self, buf: V) -> BufResult<usize, V> {
+        (&*self).read_vectored(buf).await
+    }
+}
+
+impl AsyncWrite for SocketStream {
+    async fn write<T: IoBuf>(&mut self, buf: T) -> BufResult<usize, T> {
+        (&*self).write(buf).await
+    }
+
+    async fn flush(&mut self) -> io::Result<()> {
+        (&*self).flush().await
+    }
+
+    async fn shutdown(&mut self) -> io::Result<()> {
+        (&*self).shutdown().await
     }
 }
 
