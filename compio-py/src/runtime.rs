@@ -238,7 +238,7 @@ impl Runtime {
 
     pub fn spawn<F>(&self, fut: F) -> Task<F::Output>
     where
-        F: Future,
+        F: Future + 'static,
     {
         let schedule = |runnable| {
             self.ready.borrow_mut().push_back(runnable);

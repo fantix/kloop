@@ -205,12 +205,13 @@ impl CompioLoop {
     // Completion based I/O methods returning Futures.
 
     fn sock_recv_into<'py>(
-        &self,
+        slf: &Bound<Self>,
         py: Python<'py>,
         sock: Py<PyAny>,
         buf: Py<PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        self.spawn_py(py, async {
+        let this = slf.clone().unbind();
+        slf.borrow().spawn_py(py, async move {
             let op = Python::attach(|py| {
                 let pybuf: PyBuffer<u8> = PyBuffer::get(buf.bind(py))?;
                 if pybuf.readonly() {
@@ -227,7 +228,7 @@ impl CompioLoop {
                 let len = pybuf.len_bytes();
                 let buf = unsafe { std::slice::from_raw_parts_mut(ptr, len) };
 
-                let fd = self.socket_to_fd(py, &sock)?;
+                let fd = this.bind(py).borrow().socket_to_fd(py, &sock)?;
                 Ok(Recv::new(fd, buf, 0))
             })?;
             let nbytes = runtime::execute(op).await.0?;
@@ -287,7 +288,7 @@ impl CompioLoop {
     /// When the Python Future is cancelled, the Rust Future is also cancelled.
     pub fn spawn_py<'py, F>(&self, py: Python<'py>, fut: F) -> PyResult<Bound<'py, PyAny>>
     where
-        F: Future<Output = PyResult<Py<PyAny>>>,
+        F: Future<Output = PyResult<Py<PyAny>>> + 'static,
     {
         let cancellable = Bound::new(py, Cancellable { task: None })?;
         let rv = COMPIO_FUTURE

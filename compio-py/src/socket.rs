@@ -102,12 +102,19 @@ impl PySocket {
     }
 
     #[pyo3(signature = (address, /))]
-    fn connect<'py>(&mut self, py: Python<'py>, address: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        self.pyloop.bind(py).borrow().spawn_py(py, async move {
-            let Some(inner) = &self.inner else {
-                return Err(PyOSError::new_err("socket is closed"));
-            };
-            match self.domain {
+    fn connect<'py>(
+        slf: &Bound<'py, Self>,
+        py: Python<'py>,
+        address: Py<PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let this = slf.clone().unbind();
+        let slf = slf.borrow().pyloop.bind(py).borrow();
+        slf.spawn_py(py, async move {
+            let (domain, inner) = Python::attach(|py| {
+                let this = this.bind(py).borrow();
+                this.inner().cloned().map(|inner| (this.domain, inner))
+            })?;
+            match domain {
                 Domain::IPV4 => {
                     let (result, port) = Python::attach(|py| {
                         let (host, port): (Bound<PyAny>, u16) = address.extract(py)?;
@@ -121,33 +128,37 @@ impl PySocket {
                     })?;
                     let ip = match result {
                         Ok(ip) => ip,
-                        Err(name) => name_to_ip(name, self.domain).await?.parse()?,
+                        Err(name) => name_to_ip(name, domain).await?.parse()?,
                     };
-                    if cfg!(windows) && !self.bound {
+                    if cfg!(windows) && !Python::attach(|py| this.bind(py).borrow().bound) {
                         inner
                             .socket
                             .bind(&SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0).into())?;
-                        self.bound = true;
+                        Python::attach(|py| this.bind(py).borrow_mut().bound = true);
                     }
                     let addr = SocketAddr::new(ip.into(), port).into();
                     inner.connect_async(&addr).await?;
-                    self.bound = true;
                 }
                 _ => unimplemented!(),
             };
-            Python::attach(|py| py.None().into_py_any(py))
+            Python::attach(|py| {
+                this.bind(py).borrow_mut().bound = true;
+                py.None().into_py_any(py)
+            })
         })
     }
 
     #[pyo3(signature = (bufsize, flags = 0, /))]
     fn recv<'py>(
-        &self,
+        slf: &Bound<Self>,
         py: Python<'py>,
         bufsize: usize,
         flags: i32,
     ) -> PyResult<Bound<'py, PyAny>> {
-        self.pyloop.bind(py).borrow().spawn_py(py, async move {
-            let inner = self.inner()?;
+        let this = slf.clone().unbind();
+        let slf = slf.borrow().pyloop.bind(py).borrow();
+        slf.spawn_py(py, async move {
+            let inner = Python::attach(|py| this.bind(py).borrow().inner().cloned())?;
             let buf: Vec<u8> = Vec::with_capacity(bufsize);
             let (bytes_read, buf) = buf_try!(@try inner.recv(buf, flags).await);
             Python::attach(|py| {
@@ -159,14 +170,18 @@ impl PySocket {
 
     #[pyo3(signature = (data, flags = 0, /))]
     fn send<'py>(
-        &self,
+        slf: &Bound<Self>,
         py: Python<'py>,
         data: Py<PyAny>,
         flags: i32,
     ) -> PyResult<Bound<'py, PyAny>> {
-        self.pyloop.bind(py).borrow().spawn_py(py, async move {
-            let inner = self.inner()?;
-            let buf = Python::attach(|py| py_any_to_buffer(py, data.bind(py)))?;
+        let this = slf.clone().unbind();
+        let slf = slf.borrow().pyloop.bind(py).borrow();
+        slf.spawn_py(py, async move {
+            let (inner, buf) = Python::attach(|py| {
+                let inner = this.bind(py).borrow().inner()?.clone();
+                py_any_to_buffer(py, data.bind(py)).map(|buf| (inner, buf))
+            })?;
             let (bytes_written, _) = buf_try!(@try inner.send(buf, flags).await);
             drop(data);
             Python::attach(|py| bytes_written.into_py_any(py))
@@ -175,13 +190,15 @@ impl PySocket {
 
     #[pyo3(signature = (sslcontext=None, *, server_side=false, server_hostname=None))]
     fn start_tls<'py>(
-        &mut self,
+        slf: &Bound<Self>,
         py: Python<'py>,
         sslcontext: Option<Py<PyAny>>,
         server_side: bool,
         server_hostname: Option<String>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        self.pyloop.bind(py).borrow().spawn_py(py, async move {
+        let this = slf.clone().unbind();
+        let slf = slf.borrow().pyloop.bind(py).borrow();
+        slf.spawn_py(py, async move {
             let mut metadata = SSLSocketMetadata::default();
             metadata.server_side = server_side;
 
@@ -241,7 +258,7 @@ impl PySocket {
             })?;
 
             // Then, do TLS handshake accordingly
-            let Some(inner) = self.inner.take() else {
+            let Some(inner) = Python::attach(|py| this.bind(py).borrow_mut().inner.take()) else {
                 return Err(PyOSError::new_err("socket is closed"));
             };
             metadata.fd = inner.as_raw_fd();
@@ -265,35 +282,43 @@ impl PySocket {
             };
 
             // At last, wrap the TlsStream in an SSLSocket
-            Python::attach(|py| SSLSocket::new(py, &self.pyloop, stream, metadata)?.into_py_any(py))
+            Python::attach(|py| {
+                let this = this.bind(py).borrow();
+                SSLSocket::new(py, &this.pyloop, stream, metadata)?.into_py_any(py)
+            })
         })
     }
 
     #[pyo3(signature = (how, /))]
-    fn shutdown<'py>(&self, py: Python<'py>, how: i32) -> PyResult<Bound<'py, PyAny>> {
-        self.pyloop.bind(py).borrow().spawn_py(py, async move {
-            let inner = self.inner()?;
-            let how = Python::attach(|py| {
-                if how == import::socket::shut_wr(py)? {
-                    Ok(Shutdown::Write)
+    fn shutdown<'py>(slf: &Bound<Self>, py: Python<'py>, how: i32) -> PyResult<Bound<'py, PyAny>> {
+        let this = slf.clone().unbind();
+        let slf = slf.borrow().pyloop.bind(py).borrow();
+        slf.spawn_py(py, async move {
+            let (inner, how) = Python::attach(|py| {
+                let inner = this.bind(py).borrow().inner()?.clone();
+                let how = if how == import::socket::shut_wr(py)? {
+                    Shutdown::Write
                 } else if how == import::socket::shut_rd(py)? {
-                    Ok(Shutdown::Read)
+                    Shutdown::Read
                 } else if how == import::socket::shut_rdwr(py)? {
-                    Ok(Shutdown::Both)
+                    Shutdown::Both
                 } else {
                     return Err(PyValueError::new_err(format!(
                         "invalid shutdown how: {how}"
                     )));
-                }
+                };
+                Ok((inner, how))
             })?;
             inner.shutdown(how).await?;
             Python::attach(|py| py.None().into_py_any(py))
         })
     }
 
-    fn close<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        self.pyloop.bind(py).borrow().spawn_py(py, async move {
-            if let Some(inner) = self.inner.take() {
+    fn close<'py>(slf: &Bound<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let this = slf.clone().unbind();
+        let slf = slf.borrow().pyloop.bind(py).borrow();
+        slf.spawn_py(py, async move {
+            if let Some(inner) = Python::attach(|py| this.bind(py).borrow_mut().inner.take()) {
                 inner.close().await?;
             };
             Python::attach(|py| py.None().into_py_any(py))

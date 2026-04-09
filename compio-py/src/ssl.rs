@@ -3,7 +3,9 @@
 
 use std::{
     borrow::Cow,
+    cell::{self, RefCell},
     fmt, io, iter,
+    rc::Rc,
     sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
@@ -59,7 +61,7 @@ pub struct SSLSocketMetadata {
 #[pyclass(unsendable)]
 pub struct SSLSocket {
     pyloop: Py<CompioLoop>,
-    inner: Option<TlsStream<SocketStream>>,
+    inner: SSLSocketInner,
     metadata: SSLSocketMetadata,
 }
 
@@ -74,31 +76,20 @@ impl SSLSocket {
             py,
             Self {
                 pyloop: pyloop.clone_ref(py),
-                inner: Some(stream),
+                inner: SSLSocketInner::new(stream),
                 metadata,
             },
         )
-    }
-
-    fn inner(&self) -> PyResult<&TlsStream<SocketStream>> {
-        self.inner
-            .as_ref()
-            .ok_or_else(|| PyOSError::new_err("socket is closed"))
-    }
-
-    fn inner_mut(&mut self) -> PyResult<&mut TlsStream<SocketStream>> {
-        self.inner
-            .as_mut()
-            .ok_or_else(|| PyOSError::new_err("socket is closed"))
     }
 }
 
 #[pymethods]
 impl SSLSocket {
     #[pyo3(signature = (bufsize, /))]
-    fn recv<'py>(&mut self, py: Python<'py>, bufsize: usize) -> PyResult<Bound<'py, PyAny>> {
+    fn recv<'py>(&self, py: Python<'py>, bufsize: usize) -> PyResult<Bound<'py, PyAny>> {
+        let inner = self.inner.clone();
         self.pyloop.bind(py).borrow().spawn_py(py, async move {
-            let inner = self.inner_mut()?;
+            let mut inner = inner.borrow_mut()?;
             let buf = Vec::with_capacity(bufsize);
             let (bytes_read, buf) = buf_try!(@try inner.read(buf).await);
             Python::attach(|py| {
@@ -110,8 +101,9 @@ impl SSLSocket {
 
     #[pyo3(signature = (data, /))]
     fn send<'py>(&mut self, py: Python<'py>, data: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let inner = self.inner.clone();
         self.pyloop.bind(py).borrow().spawn_py(py, async move {
-            let inner = self.inner_mut()?;
+            let mut inner = inner.borrow_mut()?;
             let buf = Python::attach(|py| py_any_to_buffer(py, data.bind(py)))?;
             let (bytes_written, _) = buf_try!(@try inner.write(buf).await);
             drop(data);
@@ -121,8 +113,9 @@ impl SSLSocket {
     }
 
     fn close<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let inner = self.inner.clone();
         self.pyloop.bind(py).borrow().spawn_py(py, async move {
-            if let Some(mut inner) = self.inner.take()
+            if let Some(mut inner) = inner.borrow_mut_opt()?.take()
                 && let Err(e) = inner.shutdown().await
                 && e.kind() != io::ErrorKind::WouldBlock
             {
@@ -132,18 +125,53 @@ impl SSLSocket {
         })
     }
 
-    fn negotiated_alpn(&'_ self) -> PyResult<Option<Cow<'_, [u8]>>> {
-        Ok(self.inner()?.negotiated_alpn())
+    fn negotiated_alpn(&self) -> PyResult<Option<Vec<u8>>> {
+        Ok(self.inner.borrow()?.negotiated_alpn().map(|x| x.to_vec()))
     }
 
-    fn __repr__(&self) -> String {
-        match &self.inner {
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(match self.inner.borrow_opt()?.as_ref() {
             Some(_) => format!(
                 "<compio.SSLSocket impl={:?}, server_side={}, fd={:?}>",
                 self.metadata.implementation, self.metadata.server_side, self.metadata.fd,
             ),
             None => "<compio.SSLSocket (closed)>".to_string(),
-        }
+        })
+    }
+}
+
+#[derive(Clone)]
+struct SSLSocketInner(Rc<RefCell<Option<TlsStream<SocketStream>>>>);
+
+impl SSLSocketInner {
+    fn new(stream: TlsStream<SocketStream>) -> Self {
+        Self(Rc::new(RefCell::new(Some(stream))))
+    }
+
+    #[inline]
+    fn borrow_opt(&self) -> PyResult<cell::Ref<'_, Option<TlsStream<SocketStream>>>> {
+        self.0
+            .try_borrow()
+            .map_err(|_| PyRuntimeError::new_err("concurrent access to SSLSocket"))
+    }
+
+    #[inline]
+    fn borrow(&self) -> PyResult<cell::Ref<'_, TlsStream<SocketStream>>> {
+        cell::Ref::filter_map(self.borrow_opt()?, |rv| rv.as_ref())
+            .map_err(|_| PyOSError::new_err("socket is closed"))
+    }
+
+    #[inline]
+    fn borrow_mut_opt(&self) -> PyResult<cell::RefMut<'_, Option<TlsStream<SocketStream>>>> {
+        self.0
+            .try_borrow_mut()
+            .map_err(|_| PyRuntimeError::new_err("concurrent access to SSLSocket"))
+    }
+
+    #[inline]
+    fn borrow_mut(&self) -> PyResult<cell::RefMut<'_, TlsStream<SocketStream>>> {
+        cell::RefMut::filter_map(self.borrow_mut_opt()?, |rv| rv.as_mut())
+            .map_err(|_| PyOSError::new_err("socket is closed"))
     }
 }
 
