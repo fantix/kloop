@@ -6,8 +6,8 @@ use std::sync::{
     atomic::{self, AtomicBool},
 };
 
-use async_task::Task;
 use compio::driver::{SharedFd, ToSharedFd, op::Recv};
+use compio_executor::JoinHandle;
 use compio_log::*;
 use once_cell::sync::OnceCell;
 use pyo3::{
@@ -299,7 +299,7 @@ impl CompioLoop {
 
         let py_fut: Py<PyAny> = rv.clone().unbind();
         let cancellable_py = cancellable.clone().unbind();
-        let task = self.runtime()?.spawn(async move {
+        let join_handle = self.runtime()?.spawn(async move {
             let result = fut.await;
             Python::attach(|py| {
                 let py_fut = py_fut.bind(py);
@@ -329,7 +329,7 @@ impl CompioLoop {
                 }
             })
         });
-        cancellable.borrow_mut().task.replace(task);
+        cancellable.borrow_mut().task.replace(join_handle);
         Ok(rv)
     }
 
@@ -347,9 +347,9 @@ impl CompioLoop {
     }
 }
 
-#[pyclass]
+#[pyclass(unsendable)]
 struct Cancellable {
-    task: Option<Task<()>>,
+    task: Option<JoinHandle<()>>,
 }
 
 #[pymethods]

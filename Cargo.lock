@@ -29,12 +29,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
-name = "async-task"
-version = "4.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b75356056920673b02621b35afd0f7dda9306d03c79a30f5c56c44cf256e3de"
-
-[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -132,7 +126,7 @@ dependencies = [
 [[package]]
 name = "compio"
 version = "0.18.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
+source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
 dependencies = [
  "compio-buf",
  "compio-driver",
@@ -146,7 +140,7 @@ dependencies = [
 [[package]]
 name = "compio-buf"
 version = "0.8.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
+source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -156,7 +150,7 @@ dependencies = [
 [[package]]
 name = "compio-driver"
 version = "0.11.1"
-source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
+source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -183,18 +177,20 @@ dependencies = [
 [[package]]
 name = "compio-executor"
 version = "0.1.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
+source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
 dependencies = [
+ "cfg-if",
  "compio-log",
  "compio-send-wrapper",
- "crossfire",
+ "crossbeam-queue",
+ "loom",
  "slotmap",
 ]
 
 [[package]]
 name = "compio-io"
 version = "0.9.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
+source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -210,7 +206,7 @@ dependencies = [
 [[package]]
 name = "compio-log"
 version = "0.1.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
+source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
 dependencies = [
  "tracing",
 ]
@@ -218,7 +214,7 @@ dependencies = [
 [[package]]
 name = "compio-net"
 version = "0.11.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
+source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
 dependencies = [
  "cfg-if",
  "compio-buf",
@@ -239,8 +235,8 @@ dependencies = [
 name = "compio-py"
 version = "0.1.0"
 dependencies = [
- "async-task",
  "compio",
+ "compio-executor",
  "compio-log",
  "once_cell",
  "pem",
@@ -267,7 +263,7 @@ dependencies = [
 [[package]]
 name = "compio-quic"
 version = "0.7.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
+source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
 dependencies = [
  "cfg_aliases",
  "compio-buf",
@@ -289,7 +285,7 @@ dependencies = [
 [[package]]
 name = "compio-runtime"
 version = "0.11.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
+source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
 dependencies = [
  "cfg-if",
  "compio-buf",
@@ -308,14 +304,18 @@ dependencies = [
 
 [[package]]
 name = "compio-send-wrapper"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4b20d9264c5c445ffee1c773b1d5ce7461fea060944424d126ac0853126edf2"
+checksum = "4f1ef3947d751725afe49ab18ce447d819cd8f4ea9b58ae94b8498eb8ad1f864"
+dependencies = [
+ "cfg-if",
+ "loom",
+]
 
 [[package]]
 name = "compio-tls"
 version = "0.9.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
+source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
 dependencies = [
  "compio-buf",
  "compio-io",
@@ -328,7 +328,7 @@ dependencies = [
 [[package]]
 name = "compio-ws"
 version = "0.3.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=708499c3f4bb4f57402782b326c7edc7b4fa8b4e#708499c3f4bb4f57402782b326c7edc7b4fa8b4e"
+source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
 dependencies = [
  "compio-buf",
  "compio-io",
@@ -387,18 +387,6 @@ name = "crossbeam-utils"
 version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
-
-[[package]]
-name = "crossfire"
-version = "3.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0042e53977a94d5d10de04ce7eb6016aa212c08e83ea202f7a9f102ff104303"
-dependencies = [
- "crossbeam-utils",
- "futures-core",
- "parking_lot",
- "smallvec",
-]
 
 [[package]]
 name = "crypto-common"
@@ -742,6 +730,8 @@ dependencies = [
  "generator",
  "pin-utils",
  "scoped-tls",
+ "serde",
+ "serde_json",
  "tracing",
  "tracing-subscriber",
 ]
@@ -809,29 +799,6 @@ name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
-
-[[package]]
-name = "parking_lot"
-version = "0.12.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
-dependencies = [
- "lock_api",
- "parking_lot_core",
-]
-
-[[package]]
-name = "parking_lot_core"
-version = "0.9.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
-dependencies = [
- "cfg-if",
- "libc",
- "redox_syscall",
- "smallvec",
- "windows-link",
-]
 
 [[package]]
 name = "pastey"
@@ -1085,15 +1052,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "redox_syscall"
-version = "0.5.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
-dependencies = [
- "bitflags",
-]
-
-[[package]]
 name = "regex-automata"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1218,6 +1176,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde"
+version = "1.0.228"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+dependencies = [
+ "serde_core",
+ "serde_derive",
+]
+
+[[package]]
 name = "serde_core"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1235,6 +1203,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.149"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83fc039473c5595ace860d8c4fafa220ff474b3fc6bfdb4293327f1a37e94d86"
+dependencies = [
+ "itoa",
+ "memchr",
+ "serde",
+ "serde_core",
+ "zmij",
 ]
 
 [[package]]
@@ -1809,3 +1790,9 @@ name = "zeroize"
 version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
+
+[[package]]
+name = "zmij"
+version = "1.0.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"

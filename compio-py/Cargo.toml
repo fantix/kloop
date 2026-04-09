@@ -20,11 +20,11 @@ enable_log = ["compio/enable_log", "tracing-subscriber"]
 pyo3 = { workspace = true, features = ["extension-module"] }
 once_cell = "1.21.3"
 scoped-tls = "1.0.1"
-async-task = { version = "4.7.1", default-features = false }
 tracing-subscriber = { version = "0.3", optional = true, features = ["env-filter"] }
 socket2 = "0.6.2"
 rustls-webpki = "0"
 pem = "3.0.6"
 pkcs8 = { version = "0.10.2", features = ["encryption"] }
 compio = { workspace = true, features = ["io-uring", "polling", "io", "py-dynamic-openssl", "rustls", "ring"] }
+compio-executor = { workspace = true }
 compio-log = { workspace = true }
