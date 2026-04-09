@@ -46,7 +46,13 @@ def has_io_uring_support() -> bool:
         return False
 
 
-class TestCompioLoop(unittest.TestCase):
+class TestCase(unittest.TestCase):
+    def tearDown(self) -> None:
+        gc.collect()
+        super().tearDown()
+
+
+class TestCompioLoop(TestCase):
     def test_create_loop(self) -> None:
         """Test that a CompioLoop can be created."""
         loop = compio.CompioLoop()
@@ -109,7 +115,7 @@ class TestCompioLoop(unittest.TestCase):
         )
 
 
-class TestLoopState(unittest.TestCase):
+class TestLoopState(TestCase):
     def test_initial_state(self) -> None:
         """Test initial state of a new loop."""
         loop = compio.CompioLoop()
@@ -142,7 +148,7 @@ class TestLoopState(unittest.TestCase):
             loop.call_soon(lambda: None)
 
 
-class TestCallSoon(unittest.TestCase):
+class TestCallSoon(TestCase):
     def test_call_soon_returns_handle(self) -> None:
         """Test that call_soon returns a Handle."""
         loop = compio.CompioLoop()
@@ -179,7 +185,7 @@ class TestCallSoon(unittest.TestCase):
         loop.close()
 
 
-class TestHandle(unittest.TestCase):
+class TestHandle(TestCase):
     def test_handle_cancel(self) -> None:
         """Test that cancelled handle's callback is not executed."""
         loop = compio.CompioLoop()
@@ -215,7 +221,7 @@ class TestHandle(unittest.TestCase):
         loop.close()
 
 
-class TestRunForever(unittest.TestCase):
+class TestRunForever(TestCase):
     def test_run_forever_and_stop(self) -> None:
         """Test run_forever stops when stop is called."""
         loop = compio.CompioLoop()
@@ -298,7 +304,7 @@ class TestRunForever(unittest.TestCase):
         loop.close()
 
 
-class TestContextVars(unittest.TestCase):
+class TestContextVars(TestCase):
     def test_call_soon_copies_context(self) -> None:
         """Test that call_soon copies current context."""
         loop = compio.CompioLoop()
@@ -344,7 +350,7 @@ class TestContextVars(unittest.TestCase):
         loop.close()
 
 
-class TestClose(unittest.TestCase):
+class TestClose(TestCase):
     def test_cannot_close_running_loop(self) -> None:
         """Test that closing a running loop raises RuntimeError."""
         loop = compio.CompioLoop()
@@ -365,7 +371,7 @@ class TestClose(unittest.TestCase):
         loop.close()
 
 
-class TestRepr(unittest.TestCase):
+class TestRepr(TestCase):
     def test_repr_shows_running_state(self) -> None:
         """Test that repr shows running state correctly."""
         loop = compio.CompioLoop()
@@ -397,7 +403,7 @@ class TestRepr(unittest.TestCase):
         self.assertIn("closed=True", repr_after)
 
 
-class TestTime(unittest.TestCase):
+class TestTime(TestCase):
     def test_time_returns_float(self) -> None:
         """Test that time() returns a float."""
         loop = compio.CompioLoop()
@@ -415,7 +421,7 @@ class TestTime(unittest.TestCase):
         loop.close()
 
 
-class TestCallLater(unittest.TestCase):
+class TestCallLater(TestCase):
     def test_call_later_returns_timer_handle(self) -> None:
         """Test that call_later returns a TimerHandle."""
         loop = compio.CompioLoop()
@@ -479,7 +485,7 @@ class TestCallLater(unittest.TestCase):
         loop.close()
 
 
-class TestCallAt(unittest.TestCase):
+class TestCallAt(TestCase):
     def test_call_at_returns_timer_handle(self) -> None:
         """Test that call_at returns a TimerHandle."""
         loop = compio.CompioLoop()
@@ -531,7 +537,7 @@ class TestCallAt(unittest.TestCase):
         loop.close()
 
 
-class TestTimerHandle(unittest.TestCase):
+class TestTimerHandle(TestCase):
     def test_timer_handle_when(self) -> None:
         """Test that TimerHandle.when() returns scheduled time."""
         loop = compio.CompioLoop()
@@ -592,7 +598,7 @@ class TestTimerHandle(unittest.TestCase):
         loop.close()
 
 
-class TestTimerHandleCancellation(unittest.TestCase):
+class TestTimerHandleCancellation(TestCase):
     def test_mass_cancel_cleanup(self) -> None:
         """Test that mass cancellation of timers triggers cleanup."""
         loop = compio.CompioLoop()
@@ -658,7 +664,7 @@ class TestTimerHandleCancellation(unittest.TestCase):
         loop.close()
 
 
-class TestCallLaterContextVars(unittest.TestCase):
+class TestCallLaterContextVars(TestCase):
     def test_call_later_copies_context(self) -> None:
         """Test that call_later copies current context."""
         loop = compio.CompioLoop()
@@ -706,7 +712,7 @@ class TestCallLaterContextVars(unittest.TestCase):
 
 
 if sys.version_info >= (3, 12):
-    class TestHandleGetContext(unittest.TestCase):
+    class TestHandleGetContext(TestCase):
         def test_get_context_returns_context(self) -> None:
             """Test that Handle.get_context() returns the context."""
             loop = compio.CompioLoop()
@@ -750,7 +756,7 @@ if sys.version_info >= (3, 12):
             loop.close()
 
 
-class TestExceptionHandler(unittest.TestCase):
+class TestExceptionHandler(TestCase):
     def test_get_exception_handler_default(self) -> None:
         """Test that get_exception_handler returns None by default."""
         loop = compio.CompioLoop()
@@ -920,7 +926,7 @@ class TestExceptionHandler(unittest.TestCase):
         loop.close()
 
 
-class TestCallLaterExceptions(unittest.TestCase):
+class TestCallLaterExceptions(TestCase):
     def test_exception_in_timer_callback(self) -> None:
         """Test that exceptions in timer callbacks invoke exception handler."""
         loop = compio.CompioLoop()
