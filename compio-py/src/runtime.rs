@@ -19,10 +19,10 @@ use std::{
 
 use compio::{
     BufResult,
-    buf::IntoInner,
+    buf::{IntoInner, SetLen},
     driver::{
-        AsFd, AsRawFd, DriverType, Key, OpCode, Proactor, PushEntry, SharedFd, ToSharedFd,
-        op::Asyncify,
+        AsFd, AsRawFd, BufferPool, BufferRef, DriverType, Extra, Key, OpCode, Proactor, PushEntry,
+        SharedFd, TakeBuffer, ToSharedFd, op,
     },
 };
 use compio_executor::{Executor, JoinHandle};
@@ -69,8 +69,8 @@ impl<T: OpCode + 'static> Future for OpFuture<T> {
                 OpOrKey::Key(key) => driver.pop(key),
             };
             match entry {
-                PushEntry::Pending(mut key) => {
-                    driver.update_waker(&mut key, cx.waker());
+                PushEntry::Pending(key) => {
+                    driver.update_waker(&key, cx.waker());
                     drop(driver);
                     self.state.replace(OpOrKey::Key(key));
                     Poll::Pending
@@ -78,6 +78,106 @@ impl<T: OpCode + 'static> Future for OpFuture<T> {
                 PushEntry::Ready(result) => Poll::Ready(result),
             }
         })
+    }
+}
+
+enum MultishotResult<T> {
+    HasMore(Key<T>, Extra),
+    Done(T),
+}
+
+struct MultishotFuture<T>(Option<OpOrKey<T>>);
+
+impl<T: OpCode + 'static> Future for MultishotFuture<T> {
+    type Output = BufResult<usize, MultishotResult<T>>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        CURRENT_RUNTIME.with(|runtime| {
+            let mut driver = runtime.driver.borrow_mut();
+            loop {
+                match self.0.take().expect("polled after completion") {
+                    OpOrKey::Op(op) => match driver.push(op) {
+                        PushEntry::Pending(key) => self.0 = Some(OpOrKey::Key(key)),
+                        PushEntry::Ready(res) => {
+                            break Poll::Ready(res.map_buffer(MultishotResult::Done));
+                        }
+                    },
+                    OpOrKey::Key(key) => match driver.pop_multishot(&key) {
+                        Some(res) => {
+                            break Poll::Ready(
+                                res.map_buffer(|e| MultishotResult::HasMore(key, e)),
+                            );
+                        }
+                        None => match driver.pop(key) {
+                            PushEntry::Pending(key) => {
+                                driver.update_waker(&key, cx.waker());
+                                self.0 = Some(OpOrKey::Key(key));
+                                break Poll::Pending;
+                            }
+                            PushEntry::Ready(res) => {
+                                break Poll::Ready(res.map_buffer(MultishotResult::Done));
+                            }
+                        },
+                    },
+                }
+            }
+        })
+    }
+}
+
+pub struct RecvStream<S: AsFd> {
+    state: Option<OpOrKey<op::RecvMulti<S>>>,
+    buffer_pool: BufferPool,
+    fd: S,
+}
+
+impl<S: AsFd + Clone + 'static> RecvStream<S> {
+    fn new(fd: S, buffer_pool: BufferPool) -> io::Result<Self> {
+        let mut rv = Self {
+            state: None,
+            buffer_pool,
+            fd,
+        };
+        rv.new_op()?;
+        Ok(rv)
+    }
+
+    fn new_op(&mut self) -> io::Result<()> {
+        debug_assert!(self.state.is_none());
+        op::RecvMulti::new(self.fd.clone(), &self.buffer_pool, 0, 0)
+            .map(|op| self.state = Some(OpOrKey::Op(op)))
+    }
+
+    pub async fn next(&mut self) -> io::Result<Option<BufferRef>> {
+        if self.state.is_none() {
+            return Ok(None);
+        }
+        let pop_and = |key, rv| {
+            CURRENT_RUNTIME.with(|runtime| runtime.driver.borrow_mut().pop(key));
+            rv
+        };
+        let (res, mut buf) = match MultishotFuture(self.state.take()).await {
+            BufResult(Ok(0), MultishotResult::HasMore(key, ..)) => return pop_and(key, Ok(None)),
+            BufResult(Ok(0), MultishotResult::Done(..)) => return Ok(None),
+            BufResult(res, MultishotResult::HasMore(key, extra)) => {
+                match res.and_then(|res| Ok((res, self.buffer_pool.take(extra.buffer_id()?)?))) {
+                    Ok(rv) => {
+                        self.state = Some(OpOrKey::Key(key));
+                        rv
+                    }
+                    Err(e) => return pop_and(key, Err(e)),
+                }
+            }
+            BufResult(Ok(res), MultishotResult::Done(op)) => {
+                self.new_op()?;
+                (res, op.take_buffer())
+            }
+            BufResult(Err(e), MultishotResult::Done(..)) => return Err(e),
+        };
+        if let Some(buf) = &mut buf {
+            unsafe { buf.advance_to(res) };
+        }
+        Ok(buf)
     }
 }
 
@@ -356,6 +456,13 @@ impl Runtime {
             }
         })
     }
+
+    pub fn recv_stream<S>(&self, fd: S) -> io::Result<RecvStream<S>>
+    where
+        S: AsFd + Clone + 'static,
+    {
+        RecvStream::new(fd, self.driver.borrow_mut().buffer_pool()?)
+    }
 }
 
 impl Drop for Runtime {
@@ -378,12 +485,31 @@ where
     .await
 }
 
+pub async fn execute_zerocopy<T>(op: T) -> BufResult<usize, T>
+where
+    T: OpCode + 'static,
+{
+    let mut res = None;
+    let mut state = OpOrKey::Op(op);
+    let op = loop {
+        let BufResult(r, multishot_res) = MultishotFuture(Some(state)).await;
+        if res.is_none() {
+            res = Some(r);
+        }
+        match multishot_res {
+            MultishotResult::HasMore(key, ..) => state = OpOrKey::Key(key),
+            MultishotResult::Done(op) => break op,
+        }
+    };
+    BufResult(res.expect("at least one CQE"), op)
+}
+
 pub async fn asyncify<T, F>(f: F) -> T
 where
     T: Send + 'static,
     F: (FnOnce() -> T) + Send + 'static,
 {
-    let op = Asyncify::new(|| {
+    let op = op::Asyncify::new(|| {
         let rv = panic::catch_unwind(panic::AssertUnwindSafe(f));
         BufResult(Ok(0), rv)
     });

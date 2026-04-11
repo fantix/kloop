@@ -268,6 +268,20 @@ impl CompioLoop {
         slf.borrow()
             .spawn_py(py, net::PySocket::new(pyloop, domain, ty, protocol))
     }
+
+    fn create_connection<'py>(
+        slf: Bound<'py, Self>,
+        py: Python<'py>,
+        protocol_factory: Py<PyAny>,
+        host: String,
+        port: u16,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let pyloop = slf.clone().unbind();
+        slf.borrow().spawn_py(
+            py,
+            net::StreamTransport::new(pyloop, host, port, protocol_factory),
+        )
+    }
 }
 
 impl CompioLoop {
