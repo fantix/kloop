@@ -21,10 +21,9 @@ use pyo3::{
 
 use crate::{
     handle::{Handle, TimerHandle},
-    import,
+    import, net,
     owned::{self, OwnedRefCell},
     runtime::{self, Runtime},
-    socket,
 };
 
 static COMPIO_FUTURE: OnceCell<Py<PyAny>> = OnceCell::new();
@@ -267,7 +266,7 @@ impl CompioLoop {
         };
         let pyloop = slf.clone().unbind();
         slf.borrow()
-            .spawn_py(py, socket::PySocket::new(pyloop, domain, ty, protocol))
+            .spawn_py(py, net::PySocket::new(pyloop, domain, ty, protocol))
     }
 }
 

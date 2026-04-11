@@ -42,7 +42,7 @@ use webpki::{
     UnknownStatusPolicy,
 };
 
-use crate::{Either, event_loop::CompioLoop, import, py_any_to_buffer, socket::SocketStream};
+use crate::{Either, event_loop::CompioLoop, import, net::SocketStream, py_any_to_buffer};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub enum SSLImpl {

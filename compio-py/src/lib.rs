@@ -9,10 +9,10 @@ use pyo3::{buffer::PyBuffer, prelude::*};
 mod event_loop;
 mod handle;
 mod import;
+mod net;
 mod owned;
 mod runtime;
 mod send_wrapper;
-mod socket;
 mod ssl;
 mod thread;
 
@@ -38,7 +38,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     event_loop::register(m)?;
     handle::register(m)?;
-    socket::register(m)?;
+    net::register(m)?;
     ssl::register(m)?;
     Ok(())
 }
