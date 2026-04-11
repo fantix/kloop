@@ -362,7 +362,6 @@ impl Drop for Runtime {
             key.waker.wake();
             trace!("Drop TimerKey");
         }
-        self.executor.clear();
     }
 }
 

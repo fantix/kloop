@@ -126,7 +126,7 @@ dependencies = [
 [[package]]
 name = "compio"
 version = "0.18.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
+source = "git+https://github.com/compio-rs/compio.git?rev=8dff845528b2b47f3cc04c302fed0b0edc6c7c91#8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
 dependencies = [
  "compio-buf",
  "compio-driver",
@@ -140,7 +140,7 @@ dependencies = [
 [[package]]
 name = "compio-buf"
 version = "0.8.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
+source = "git+https://github.com/compio-rs/compio.git?rev=8dff845528b2b47f3cc04c302fed0b0edc6c7c91#8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -150,7 +150,7 @@ dependencies = [
 [[package]]
 name = "compio-driver"
 version = "0.11.1"
-source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
+source = "git+https://github.com/compio-rs/compio.git?rev=8dff845528b2b47f3cc04c302fed0b0edc6c7c91#8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -177,7 +177,7 @@ dependencies = [
 [[package]]
 name = "compio-executor"
 version = "0.1.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
+source = "git+https://github.com/compio-rs/compio.git?rev=8dff845528b2b47f3cc04c302fed0b0edc6c7c91#8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
 dependencies = [
  "cfg-if",
  "compio-log",
@@ -190,7 +190,7 @@ dependencies = [
 [[package]]
 name = "compio-io"
 version = "0.9.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
+source = "git+https://github.com/compio-rs/compio.git?rev=8dff845528b2b47f3cc04c302fed0b0edc6c7c91#8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -206,7 +206,7 @@ dependencies = [
 [[package]]
 name = "compio-log"
 version = "0.1.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
+source = "git+https://github.com/compio-rs/compio.git?rev=8dff845528b2b47f3cc04c302fed0b0edc6c7c91#8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
 dependencies = [
  "tracing",
 ]
@@ -214,7 +214,7 @@ dependencies = [
 [[package]]
 name = "compio-net"
 version = "0.11.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
+source = "git+https://github.com/compio-rs/compio.git?rev=8dff845528b2b47f3cc04c302fed0b0edc6c7c91#8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
 dependencies = [
  "cfg-if",
  "compio-buf",
@@ -263,7 +263,7 @@ dependencies = [
 [[package]]
 name = "compio-quic"
 version = "0.7.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
+source = "git+https://github.com/compio-rs/compio.git?rev=8dff845528b2b47f3cc04c302fed0b0edc6c7c91#8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
 dependencies = [
  "cfg_aliases",
  "compio-buf",
@@ -285,7 +285,7 @@ dependencies = [
 [[package]]
 name = "compio-runtime"
 version = "0.11.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
+source = "git+https://github.com/compio-rs/compio.git?rev=8dff845528b2b47f3cc04c302fed0b0edc6c7c91#8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
 dependencies = [
  "cfg-if",
  "compio-buf",
@@ -315,7 +315,7 @@ dependencies = [
 [[package]]
 name = "compio-tls"
 version = "0.9.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
+source = "git+https://github.com/compio-rs/compio.git?rev=8dff845528b2b47f3cc04c302fed0b0edc6c7c91#8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
 dependencies = [
  "compio-buf",
  "compio-io",
@@ -328,7 +328,7 @@ dependencies = [
 [[package]]
 name = "compio-ws"
 version = "0.3.0"
-source = "git+https://github.com/compio-rs/compio.git?rev=54e801c3f17f9c82e79d24be65bd24c5b05056eb#54e801c3f17f9c82e79d24be65bd24c5b05056eb"
+source = "git+https://github.com/compio-rs/compio.git?rev=8dff845528b2b47f3cc04c302fed0b0edc6c7c91#8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
 dependencies = [
  "compio-buf",
  "compio-io",
