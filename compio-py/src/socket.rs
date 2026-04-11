@@ -11,7 +11,7 @@ use compio::{
     buf::{BufResult, IntoInner, IoBuf, IoBufMut, IoVectoredBufMut, buf_try},
     driver::{
         AsRawFd, ToSharedFd, impl_raw_fd,
-        op::{BufResultExt, CloseSocket, Connect, Recv, Send, ShutdownSocket},
+        op::{self, BufResultExt},
     },
     io::{AsyncRead, AsyncWrite},
     tls::{
@@ -462,7 +462,7 @@ impl Socket {
     }
 
     async fn connect_async(&self, addr: &SockAddr) -> io::Result<()> {
-        let op = Connect::new(self.to_shared_fd(), addr.clone());
+        let op = op::Connect::new(self.to_shared_fd(), addr.clone());
         let (_, _op) = buf_try!(@try runtime::execute(op).await);
         #[cfg(windows)]
         _op.update_context()?;
@@ -471,28 +471,33 @@ impl Socket {
 
     async fn recv<B: IoBufMut>(&self, buffer: B, flags: i32) -> BufResult<usize, B> {
         let fd = self.to_shared_fd();
-        let op = Recv::new(fd, buffer, flags);
+        let op = op::Recv::new(fd, buffer, flags);
         let res = runtime::execute(op).await.into_inner();
         unsafe { res.map_advanced() }
     }
 
     async fn send<T: IoBuf>(&self, buffer: T, flags: i32) -> BufResult<usize, T> {
         let fd = self.to_shared_fd();
-        let op = Send::new(fd, buffer, flags);
+        let op = op::Send::new(fd, buffer, flags);
         runtime::execute(op).await.into_inner()
     }
 
     async fn shutdown(&self, how: Shutdown) -> io::Result<()> {
-        let fd = self.to_shared_fd();
-        let op = ShutdownSocket::new(fd, how);
-        runtime::execute(op).await.0?;
-        Ok(())
+        #[cfg(unix)]
+        {
+            let fd = self.to_shared_fd();
+            let op = op::ShutdownSocket::new(fd, how);
+            runtime::execute(op).await.0?;
+            Ok(())
+        }
+        #[cfg(windows)]
+        self.socket.shutdown(how)
     }
 
     async fn close(self) -> io::Result<()> {
         let fd = self.socket.into_inner().take().await;
         if let Some(fd) = fd {
-            let op = CloseSocket::new(fd.into());
+            let op = op::CloseSocket::new(fd.into());
             runtime::execute(op).await.0?;
         }
         Ok(())
