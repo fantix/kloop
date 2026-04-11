@@ -23,13 +23,11 @@ use pyo3::{
 };
 use socket2::{Domain, Protocol, Type};
 
-use super::{Socket, SocketStream, idna_converter, name_to_ip};
-use crate::{
-    Either,
-    event_loop::CompioLoop,
-    extract_py_err, import, py_any_to_buffer,
+use super::{
+    Socket, SocketStream, idna_converter, name_to_ip,
     ssl::{RustlsContext, SSLImpl, SSLSocket, SSLSocketMetadata},
 };
+use crate::{Either, event_loop::CompioLoop, extract_py_err, import, py_any_to_buffer};
 
 #[pyclass(unsendable, name = "Socket")]
 pub struct PySocket {

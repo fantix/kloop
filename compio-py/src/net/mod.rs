@@ -25,6 +25,7 @@ use crate::{
 };
 
 mod socket;
+mod ssl;
 
 #[derive(Debug, Clone)]
 pub struct SocketStream {
@@ -122,6 +123,7 @@ where
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     socket::register(m)?;
+    ssl::register(m)?;
     Ok(())
 }
 

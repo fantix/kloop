@@ -13,7 +13,6 @@ mod net;
 mod owned;
 mod runtime;
 mod send_wrapper;
-mod ssl;
 mod thread;
 
 /// A Python module implemented in Rust. The name of this module must match
@@ -39,7 +38,6 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     event_loop::register(m)?;
     handle::register(m)?;
     net::register(m)?;
-    ssl::register(m)?;
     Ok(())
 }
 
