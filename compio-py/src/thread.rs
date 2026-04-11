@@ -3,13 +3,14 @@
 
 //! Thread ID utilities for atomic storage.
 //!
-//! Provides a numeric representation of thread IDs that can be stored in atomic integers
-//! for ownership tracking and cross-thread validation.
+//! Provides a numeric representation of thread IDs that can be stored in atomic
+//! integers for ownership tracking and cross-thread validation.
 //!
 //! # Implementation
 //!
-//! This module uses a monotonic atomic counter to generate unique thread IDs, guaranteeing
-//! that each thread receives a distinct non-zero identifier. This approach ensures:
+//! This module uses a monotonic atomic counter to generate unique thread IDs,
+//! guaranteeing that each thread receives a distinct non-zero identifier. This
+//! approach ensures:
 //! - **Uniqueness**: No hash collisions possible
 //! - **Efficiency**: Thread-local caching via `thread_local!`
 //! - **Compatibility**: Works with atomic compare-exchange operations
@@ -48,8 +49,9 @@ thread_local! {
 
 /// Returns a unique numeric identifier for the current thread.
 ///
-/// This function is thread-safe and returns the same ID when called multiple times
-/// from the same thread. Each thread is guaranteed to receive a distinct non-zero ID.
+/// This function is thread-safe and returns the same ID when called multiple
+/// times from the same thread. Each thread is guaranteed to receive a distinct
+/// non-zero ID.
 ///
 /// # Returns
 ///
@@ -68,17 +70,21 @@ thread_local! {
 /// # Performance
 ///
 /// This function is very fast as it simply reads from thread-local storage
-/// after the first call. The initial call per thread performs one atomic increment.
+/// after the first call. The initial call per thread performs one atomic
+/// increment.
 pub fn get_current_thread_id() -> NonZero<u32> {
     CURRENT_THREAD_ID.with(|id| *id)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        collections::HashSet,
+        sync::{Arc, Mutex},
+        thread,
+    };
+
     use super::*;
-    use std::collections::HashSet;
-    use std::sync::{Arc, Mutex};
-    use std::thread;
 
     #[test]
     fn test_same_thread_returns_same_id() {

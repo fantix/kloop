@@ -13,8 +13,7 @@ use std::{
         Arc,
         atomic::{self, AtomicBool, AtomicUsize},
     },
-    task::Waker,
-    task::{Context, Poll},
+    task::{Context, Poll, Waker},
     time::{Duration, Instant},
 };
 
@@ -28,7 +27,11 @@ use compio::{
 };
 use compio_executor::{Executor, JoinHandle};
 use compio_log::*;
-use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyDict, types::PyWeakrefReference};
+use pyo3::{
+    exceptions::PyRuntimeError,
+    prelude::*,
+    types::{PyDict, PyWeakrefReference},
+};
 
 /// Minimum number of _scheduled timer handles before cleanup of
 /// cancelled handles is performed.

@@ -96,7 +96,8 @@ impl<T> Drop for SendWrapper<T> {
 #[inline(never)]
 #[track_caller]
 fn invalid_drop() {
-    const DROP_ERROR: &'static str = "Dropped SendWrapper<T> variable from a thread different to the one it has been created with.";
+    const DROP_ERROR: &'static str = "Dropped SendWrapper<T> variable from a thread different to \
+                                      the one it has been created with.";
 
     if !thread::panicking() {
         // panic because of dropping from wrong thread

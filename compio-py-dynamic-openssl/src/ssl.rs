@@ -398,12 +398,12 @@ mod error {
     pub struct ErrorCode(c_int);
 
     impl ErrorCode {
-        pub const ZERO_RETURN: ErrorCode = ErrorCode(ffi::SSL_ERROR_ZERO_RETURN);
+        pub const SSL: ErrorCode = ErrorCode(ffi::SSL_ERROR_SSL);
+        pub const SYSCALL: ErrorCode = ErrorCode(ffi::SSL_ERROR_SYSCALL);
+        pub const WANT_CLIENT_HELLO_CB: ErrorCode = ErrorCode(ffi::SSL_ERROR_WANT_CLIENT_HELLO_CB);
         pub const WANT_READ: ErrorCode = ErrorCode(ffi::SSL_ERROR_WANT_READ);
         pub const WANT_WRITE: ErrorCode = ErrorCode(ffi::SSL_ERROR_WANT_WRITE);
-        pub const SYSCALL: ErrorCode = ErrorCode(ffi::SSL_ERROR_SYSCALL);
-        pub const SSL: ErrorCode = ErrorCode(ffi::SSL_ERROR_SSL);
-        pub const WANT_CLIENT_HELLO_CB: ErrorCode = ErrorCode(ffi::SSL_ERROR_WANT_CLIENT_HELLO_CB);
+        pub const ZERO_RETURN: ErrorCode = ErrorCode(ffi::SSL_ERROR_ZERO_RETURN);
 
         pub fn from_raw(raw: c_int) -> ErrorCode {
             ErrorCode(raw)

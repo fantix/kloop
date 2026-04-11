@@ -3,20 +3,21 @@
 
 //! Python module import utilities with caching.
 //!
-//! This module provides macros and functions for efficiently importing Python modules
-//! and accessing their attributes with automatic caching using `OnceCell`.
+//! This module provides macros and functions for efficiently importing Python
+//! modules and accessing their attributes with automatic caching using
+//! `OnceCell`.
 //!
 //! # Thread Safety
 //!
-//! All cached imports and attributes use `OnceCell::sync`, making them safe to access
-//! from multiple threads. The first thread to access will perform the import/getattr,
-//! and subsequent accesses will use the cached value.
+//! All cached imports and attributes use `OnceCell::sync`, making them safe to
+//! access from multiple threads. The first thread to access will perform the
+//! import/getattr, and subsequent accesses will use the cached value.
 //!
 //! # Performance
 //!
-//! By caching module imports and attribute lookups, this module avoids the overhead
-//! of repeated Python import statements and attribute resolution, which can be
-//! significant in performance-critical code paths.
+//! By caching module imports and attribute lookups, this module avoids the
+//! overhead of repeated Python import statements and attribute resolution,
+//! which can be significant in performance-critical code paths.
 //!
 //! # Example
 //!
@@ -34,8 +35,9 @@ use pyo3::prelude::*;
 
 /// Generates a function that imports a Python module with caching.
 ///
-/// This macro creates a public function that imports the specified Python module
-/// on first call and caches it for subsequent calls using a static `OnceCell`.
+/// This macro creates a public function that imports the specified Python
+/// module on first call and caches it for subsequent calls using a static
+/// `OnceCell`.
 ///
 /// # Generated Function Signature
 ///
@@ -45,7 +47,8 @@ use pyo3::prelude::*;
 ///
 /// # Arguments
 ///
-/// * `$module_name` - The name of the Python module to import (as an identifier)
+/// * `$module_name` - The name of the Python module to import (as an
+///   identifier)
 ///
 /// # Example
 ///
@@ -60,8 +63,8 @@ use pyo3::prelude::*;
 ///
 /// # Thread Safety
 ///
-/// The generated function is thread-safe. Multiple threads can call it concurrently,
-/// and only the first call will perform the actual import.
+/// The generated function is thread-safe. Multiple threads can call it
+/// concurrently, and only the first call will perform the actual import.
 macro_rules! import {
     ($module_name:ident) => {
         pub fn $module_name<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyModule>> {
@@ -105,7 +108,8 @@ macro_rules! import {
 ///
 /// # Thread Safety
 ///
-/// Like `import!`, this macro generates thread-safe code using static `OnceCell`.
+/// Like `import!`, this macro generates thread-safe code using static
+/// `OnceCell`.
 ///
 /// # Note
 ///
@@ -121,8 +125,9 @@ macro_rules! getattr {
 
 /// Creates a module wrapper with standard imports and boilerplate.
 ///
-/// This macro combines the `import!` macro with a module definition that includes
-/// the standard `use` statements needed for working with Python objects.
+/// This macro combines the `import!` macro with a module definition that
+/// includes the standard `use` statements needed for working with Python
+/// objects.
 ///
 /// # Arguments
 ///

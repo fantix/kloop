@@ -3,10 +3,10 @@
 
 //! Thread-safe cell with single-owner access control and reference counting.
 //!
-//! This module provides `OwnedRefCell<T>`, which combines lazy initialization with
-//! exclusive ownership semantics. At any given time, at most one thread "owns" the
-//! cell and can access its contents. The owning thread can hold multiple references
-//! simultaneously through reference counting.
+//! This module provides `OwnedRefCell<T>`, which combines lazy initialization
+//! with exclusive ownership semantics. At any given time, at most one thread
+//! "owns" the cell and can access its contents. The owning thread can hold
+//! multiple references simultaneously through reference counting.
 //!
 //! This module is inspired by:
 //!  * `std::cell::RefCell` for interior mutability and reference counting
@@ -14,14 +14,14 @@
 //!  * https://github.com/compio-rs/compio/blob/master/compio-runtime/src/runtime/send_wrapper.rs
 //!  * https://github.com/thk1/send_wrapper
 
-use pyo3::PyErr;
-use pyo3::exceptions::PyRuntimeError;
 use std::{
     cell::{Cell, UnsafeCell},
     marker, mem,
     ops::Deref,
     sync::atomic::{AtomicU32, Ordering},
 };
+
+use pyo3::{PyErr, exceptions::PyRuntimeError};
 
 /// Sentinel value indicating that no thread currently owns the cell.
 const NO_OWNER: u32 = 0;
@@ -55,20 +55,24 @@ type OwnedResult<T> = Result<T, Error>;
 
 /// A thread-safe cell with single-owner access control.
 ///
-/// `OwnedRefCell<T>` provides synchronized access to an optional value with the following
-/// guarantees:
+/// `OwnedRefCell<T>` provides synchronized access to an optional value with the
+/// following guarantees:
 ///
 /// - **Single ownership**: At most one thread can own the cell at any time
-/// - **Reference counting**: The owning thread can create multiple `Ref` instances
-/// - **Reentrant control**: Callers can specify whether reentrant access is allowed
-/// - **Lazy initialization**: The value can be initialized exactly once after creation
+/// - **Reference counting**: The owning thread can create multiple `Ref`
+///   instances
+/// - **Reentrant control**: Callers can specify whether reentrant access is
+///   allowed
+/// - **Lazy initialization**: The value can be initialized exactly once after
+///   creation
 ///
 /// # Thread Safety
 ///
-/// The cell is `Sync` when `T: Send`. The `owner` atomic ensures exclusive ownership,
-/// while the `borrow` counter tracks active references from the owning thread. Since
-/// only the owning thread can access `borrow` (protected by the `owner` lock), using
-/// a non-atomic `Cell` is sound and more efficient than `AtomicUsize`.
+/// The cell is `Sync` when `T: Send`. The `owner` atomic ensures exclusive
+/// ownership, while the `borrow` counter tracks active references from the
+/// owning thread. Since only the owning thread can access `borrow` (protected
+/// by the `owner` lock), using a non-atomic `Cell` is sound and more efficient
+/// than `AtomicUsize`.
 ///
 /// # Examples
 ///
@@ -87,8 +91,8 @@ type OwnedResult<T> = Result<T, Error>;
 /// ```
 pub struct OwnedRefCell<T> {
     /// The inner storage for the optional value.
-    /// Uses `UnsafeCell` to allow interior mutability while maintaining `Sync` safety
-    /// through the owner lock.
+    /// Uses `UnsafeCell` to allow interior mutability while maintaining `Sync`
+    /// safety through the owner lock.
     inner: UnsafeCell<Option<T>>,
 
     /// Atomic tracking of which thread (by thread ID) currently owns this cell.
@@ -96,8 +100,8 @@ pub struct OwnedRefCell<T> {
     owner: AtomicU32,
 
     /// Reference counter tracking the number of active `Ref` instances.
-    /// This is a `Cell` (not `AtomicUsize`) because only the owning thread can access it,
-    /// with access protected by the `owner` atomic lock.
+    /// This is a `Cell` (not `AtomicUsize`) because only the owning thread can
+    /// access it, with access protected by the `owner` atomic lock.
     borrow: Cell<BorrowCounter>,
 }
 
@@ -108,8 +112,10 @@ impl<T> OwnedRefCell<T> {
     ///
     /// This is safe because:
     /// - Reads are protected by the atomic `owner` field
-    /// - Modifications only occur when a thread holds ownership via `OwnershipGuard`
-    /// - The borrow counter ensures the value isn't dropped while references exist
+    /// - Modifications only occur when a thread holds ownership via
+    ///   `OwnershipGuard`
+    /// - The borrow counter ensures the value isn't dropped while references
+    ///   exist
     #[inline]
     fn get_unchecked(&self) -> Option<&T> {
         unsafe { &*self.inner.get() }.as_ref()
@@ -117,19 +123,21 @@ impl<T> OwnedRefCell<T> {
 
     /// Attempts to acquire ownership of this cell for the current thread.
     ///
-    /// This method acquires an `OwnershipGuard` which increments the reference count.
-    /// When all `OwnershipGuard` instances are dropped, ownership is released.
+    /// This method acquires an `OwnershipGuard` which increments the reference
+    /// count. When all `OwnershipGuard` instances are dropped, ownership is
+    /// released.
     ///
     /// # Parameters
     ///
-    /// - `reentrant`: If `true`, allows the current owner to acquire again (increments ref count).
-    ///                If `false`, returns `Err` if the cell is already owned.
+    /// - `reentrant`: If `true`, allows the current owner to acquire again
+    ///   (increments ref count). If `false`, returns `Err` if the cell is
+    ///   already owned.
     ///
     /// # Returns
     ///
     /// - `Ok(OwnershipGuard)` if ownership was acquired or reacquired
-    /// - `Err(thread_id)` if another thread owns the cell, or if `reentrant=false` and
-    ///   this thread already owns it
+    /// - `Err(thread_id)` if another thread owns the cell, or if
+    ///   `reentrant=false` and this thread already owns it
     ///
     /// # Examples
     ///
@@ -150,8 +158,9 @@ impl<T> OwnedRefCell<T> {
 
     /// Gets a reference to the value in the cell, if it exists.
     ///
-    /// This is a convenience method that acquires ownership (allowing reentrant access)
-    /// and returns a reference to the value if it has been initialized.
+    /// This is a convenience method that acquires ownership (allowing reentrant
+    /// access) and returns a reference to the value if it has been
+    /// initialized.
     ///
     /// # Returns
     ///
@@ -166,8 +175,8 @@ impl<T> OwnedRefCell<T> {
 
     /// Initializes the cell with a value.
     ///
-    /// The calling thread must acquire ownership (or already own it) before initializing.
-    /// This method allows reentrant access.
+    /// The calling thread must acquire ownership (or already own it) before
+    /// initializing. This method allows reentrant access.
     ///
     /// # Panics
     ///
@@ -226,23 +235,24 @@ impl<T> Default for OwnedRefCell<T> {
 /// - The `owner` atomic ensures exclusive ownership (only one thread at a time)
 /// - The `borrow` counter is only accessed by the owning thread
 /// - The value can be sent between threads when ownership is transferred
-/// - After initialization, the value is immutable (only read through shared references)
-// FIXME: since compio-rs/compio#660, `Proactor` is no longer `Send`, so we tentatively
-// allow any `T` to be accessible from multiple threads, leaving undefined behavior
-// if `T` is not `Send`. A proper fix would be to explicitly pin the thread ID by the
-// runtime when it is known to be safe. See also #6.
+/// - After initialization, the value is immutable (only read through shared
+///   references)
+// FIXME: since compio-rs/compio#660, `Proactor` is no longer `Send`, so we
+// tentatively allow any `T` to be accessible from multiple threads, leaving
+// undefined behavior if `T` is not `Send`. A proper fix would be to explicitly
+// pin the thread ID by the runtime when it is known to be safe. See also #6.
 // unsafe impl<T> Sync for OwnedRefCell<T> where T: Send {}
 unsafe impl<T> Sync for OwnedRefCell<T> {}
 unsafe impl<T> Send for OwnedRefCell<T> {}
 
 /// A reference to a value inside an `OwnedRefCell`.
 ///
-/// This type derefs to `T` and holds an `OwnershipGuard` to maintain the reference count.
-/// When dropped, the reference count is decremented, and ownership may be released
-/// if this was the last reference.
+/// This type derefs to `T` and holds an `OwnershipGuard` to maintain the
+/// reference count. When dropped, the reference count is decremented, and
+/// ownership may be released if this was the last reference.
 ///
-/// `Ref` is neither `Send` nor `Sync` because it must be dropped on the same thread
-/// that created it to maintain correct ownership tracking.
+/// `Ref` is neither `Send` nor `Sync` because it must be dropped on the same
+/// thread that created it to maintain correct ownership tracking.
 pub struct Ref<'a, T> {
     /// Reference to the value stored in the cell.
     value: &'a T,
@@ -260,19 +270,21 @@ impl<T> Deref for Ref<'_, T> {
     }
 }
 
-/// RAII guard that manages ownership and reference counting for an `OwnedRefCell`.
+/// RAII guard that manages ownership and reference counting for an
+/// `OwnedRefCell`.
 ///
-/// Each `OwnershipGuard` increments the borrow counter when created and decrements it when
-/// dropped. Ownership is released (reset to `NO_OWNER`) only when the reference count
-/// reaches zero.
+/// Each `OwnershipGuard` increments the borrow counter when created and
+/// decrements it when dropped. Ownership is released (reset to `NO_OWNER`) only
+/// when the reference count reaches zero.
 ///
-/// `OwnershipGuard` is neither `Send` nor `Sync` (via `PhantomData<*const ()>`) because
-/// it must be dropped on the same thread that created it to maintain correct ownership
-/// tracking and borrow counting.
+/// `OwnershipGuard` is neither `Send` nor `Sync` (via `PhantomData<*const ()>`)
+/// because it must be dropped on the same thread that created it to maintain
+/// correct ownership tracking and borrow counting.
 pub struct OwnershipGuard<'a> {
     /// Reference to the atomic owner field tracking which thread owns the cell.
     owner: &'a AtomicU32,
-    /// Reference to the non-atomic borrow counter (protected by the owner lock).
+    /// Reference to the non-atomic borrow counter (protected by the owner
+    /// lock).
     borrow: &'a Cell<BorrowCounter>,
     /// Marker type to make this `!Send` and `!Sync`.
     /// Using `*const ()` because raw pointers are neither `Send` nor `Sync`.
@@ -280,9 +292,11 @@ pub struct OwnershipGuard<'a> {
 }
 
 impl<'a> OwnershipGuard<'a> {
-    /// Attempts to create a new `OwnershipGuard` by acquiring or reacquiring ownership.
+    /// Attempts to create a new `OwnershipGuard` by acquiring or reacquiring
+    /// ownership.
     ///
-    /// This method uses a compare-and-swap loop to atomically manage the owner field.
+    /// This method uses a compare-and-swap loop to atomically manage the owner
+    /// field.
     ///
     /// # Parameters
     ///
@@ -293,8 +307,8 @@ impl<'a> OwnershipGuard<'a> {
     /// # Returns
     ///
     /// - `Ok(OwnershipGuard)` if ownership was acquired or reacquired
-    /// - `Err(thread_id)` if another thread owns the cell, or if `reentrant=false`
-    ///   and this thread already owns it
+    /// - `Err(thread_id)` if another thread owns the cell, or if
+    ///   `reentrant=false` and this thread already owns it
     #[inline]
     fn new(
         owner: &'a AtomicU32,
@@ -312,7 +326,8 @@ impl<'a> OwnershipGuard<'a> {
         while old == NO_OWNER {
             // Attempt to atomically swap NO_OWNER with our thread ID
             // Success ordering: AcqRel
-            //   - Acquire: synchronize with previous Release store (though NO_OWNER means none)
+            //   - Acquire: synchronize with previous Release store (though NO_OWNER means
+            //     none)
             //   - Release: publish our ownership to other threads
             // Failure ordering: Acquire
             //   - Synchronize with concurrent modifications
@@ -342,14 +357,16 @@ impl<'a> OwnershipGuard<'a> {
     ///
     /// # Safety
     ///
-    /// This must only be called after successfully acquiring ownership (either via CAS
-    /// or reentrant check). The caller must ensure that only the owning thread calls this.
+    /// This must only be called after successfully acquiring ownership (either
+    /// via CAS or reentrant check). The caller must ensure that only the
+    /// owning thread calls this.
     ///
     /// # Note on `Cell` safety
     ///
     /// Using `Cell::get()` and `Cell::set()` is safe here because:
     /// - Only the owning thread can call this (protected by the `owner` lock)
-    /// - The `OwnershipGuard` is `!Send`, so it can't be transferred to another thread
+    /// - The `OwnershipGuard` is `!Send`, so it can't be transferred to another
+    ///   thread
     /// - This avoids the overhead of atomic operations while maintaining safety
     #[inline]
     fn new_unchecked(owner: &'a AtomicU32, borrow: &'a Cell<BorrowCounter>) -> OwnershipGuard<'a> {
@@ -367,9 +384,10 @@ impl<'a> OwnershipGuard<'a> {
 impl Drop for OwnershipGuard<'_> {
     /// Decrements the reference count when the guard is dropped.
     ///
-    /// If the count reaches zero, releases ownership by resetting the owner field
-    /// to `NO_OWNER`. Uses Release ordering to ensure all modifications made while
-    /// holding ownership are visible to the next thread that acquires it.
+    /// If the count reaches zero, releases ownership by resetting the owner
+    /// field to `NO_OWNER`. Uses Release ordering to ensure all
+    /// modifications made while holding ownership are visible to the next
+    /// thread that acquires it.
     #[inline]
     fn drop(&mut self) {
         // Decrement the borrow count
@@ -388,9 +406,9 @@ impl Drop for OwnershipGuard<'_> {
 
 #[cfg(test)]
 mod tests {
+    use std::{sync::Arc, thread};
+
     use super::*;
-    use std::sync::Arc;
-    use std::thread;
 
     #[test]
     fn test_init_and_get() {

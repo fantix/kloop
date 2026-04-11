@@ -13,8 +13,7 @@ use once_cell::sync::OnceCell;
 use pyo3::{
     IntoPyObjectExt,
     buffer::PyBuffer,
-    exceptions::PyRuntimeError,
-    exceptions::PyValueError,
+    exceptions::{PyRuntimeError, PyValueError},
     ffi::c_str,
     prelude::*,
     types::{PyDict, PyMapping, PyTuple, PyWeakrefReference},
@@ -284,8 +283,9 @@ impl CompioLoop {
         }
     }
 
-    /// Spawn a Rust Future onto the event loop, returning a connected Python Future.
-    /// When the Python Future is cancelled, the Rust Future is also cancelled.
+    /// Spawn a Rust Future onto the event loop, returning a connected Python
+    /// Future. When the Python Future is cancelled, the Rust Future is also
+    /// cancelled.
     pub fn spawn_py<'py, F>(&self, py: Python<'py>, fut: F) -> PyResult<Bound<'py, PyAny>>
     where
         F: Future<Output = PyResult<Py<PyAny>>> + 'static,
