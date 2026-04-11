@@ -6,8 +6,8 @@ use std::sync::{
     atomic::{self, AtomicBool},
 };
 
-use async_task::Task;
 use compio::driver::{SharedFd, ToSharedFd, op::Recv};
+use compio_executor::JoinHandle;
 use compio_log::*;
 use once_cell::sync::OnceCell;
 use pyo3::{
@@ -205,12 +205,13 @@ impl CompioLoop {
     // Completion based I/O methods returning Futures.
 
     fn sock_recv_into<'py>(
-        &self,
+        slf: &Bound<Self>,
         py: Python<'py>,
         sock: Py<PyAny>,
         buf: Py<PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        self.spawn_py(py, async {
+        let this = slf.clone().unbind();
+        slf.borrow().spawn_py(py, async move {
             let op = Python::attach(|py| {
                 let pybuf: PyBuffer<u8> = PyBuffer::get(buf.bind(py))?;
                 if pybuf.readonly() {
@@ -227,7 +228,7 @@ impl CompioLoop {
                 let len = pybuf.len_bytes();
                 let buf = unsafe { std::slice::from_raw_parts_mut(ptr, len) };
 
-                let fd = self.socket_to_fd(py, &sock)?;
+                let fd = this.bind(py).borrow().socket_to_fd(py, &sock)?;
                 Ok(Recv::new(fd, buf, 0))
             })?;
             let nbytes = runtime::execute(op).await.0?;
@@ -287,7 +288,7 @@ impl CompioLoop {
     /// When the Python Future is cancelled, the Rust Future is also cancelled.
     pub fn spawn_py<'py, F>(&self, py: Python<'py>, fut: F) -> PyResult<Bound<'py, PyAny>>
     where
-        F: Future<Output = PyResult<Py<PyAny>>>,
+        F: Future<Output = PyResult<Py<PyAny>>> + 'static,
     {
         let cancellable = Bound::new(py, Cancellable { task: None })?;
         let rv = COMPIO_FUTURE
@@ -298,7 +299,7 @@ impl CompioLoop {
 
         let py_fut: Py<PyAny> = rv.clone().unbind();
         let cancellable_py = cancellable.clone().unbind();
-        let task = self.runtime()?.spawn(async move {
+        let join_handle = self.runtime()?.spawn(async move {
             let result = fut.await;
             Python::attach(|py| {
                 let py_fut = py_fut.bind(py);
@@ -328,7 +329,7 @@ impl CompioLoop {
                 }
             })
         });
-        cancellable.borrow_mut().task.replace(task);
+        cancellable.borrow_mut().task.replace(join_handle);
         Ok(rv)
     }
 
@@ -346,9 +347,9 @@ impl CompioLoop {
     }
 }
 
-#[pyclass]
+#[pyclass(unsendable)]
 struct Cancellable {
-    task: Option<Task<()>>,
+    task: Option<JoinHandle<()>>,
 }
 
 #[pymethods]

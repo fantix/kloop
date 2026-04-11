@@ -3,7 +3,7 @@
 
 use std::iter;
 
-use async_task::Task;
+use compio_executor::JoinHandle;
 use pyo3::{
     exceptions::{PyKeyboardInterrupt, PySystemExit},
     prelude::*,
@@ -13,12 +13,12 @@ use pyo3::{
 
 use crate::{import, runtime, runtime::Runtime};
 
-#[pyclass(subclass, weakref)]
+#[pyclass(subclass, weakref, unsendable)]
 pub struct Handle {
     callback: Py<PyAny>,
     args: Py<PyTuple>,
     context: Py<PyAny>,
-    task: Option<Task<()>>,
+    task: Option<JoinHandle<()>>,
 }
 
 impl Handle {

@@ -4,7 +4,7 @@
 use std::{
     cell::RefCell,
     cmp,
-    collections::{BinaryHeap, VecDeque},
+    collections::BinaryHeap,
     io,
     ops::Deref,
     panic,
@@ -18,7 +18,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use async_task::{Runnable, Task};
 use compio::{
     BufResult,
     buf::IntoInner,
@@ -27,6 +26,7 @@ use compio::{
         op::Asyncify,
     },
 };
+use compio_executor::{Executor, JoinHandle};
 use compio_log::*;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyDict, types::PyWeakrefReference};
 
@@ -185,7 +185,7 @@ impl Future for Timer {
 
 impl Drop for Timer {
     fn drop(&mut self) {
-        trace!("Timer cancelled");
+        trace!("Timer dropped");
         if self
             .cancelled
             .compare_exchange(
@@ -197,7 +197,6 @@ impl Drop for Timer {
             .is_ok()
             && self.scheduled
         {
-            debug!("Timer cancelled counted");
             self.timer_cancelled_count
                 .fetch_add(1, atomic::Ordering::Release);
         }
@@ -209,7 +208,7 @@ pub struct Runtime {
     epoch: Instant,
     stopping: Arc<AtomicBool>,
     driver: RefCell<Proactor>,
-    ready: RefCell<VecDeque<Runnable>>,
+    executor: Executor,
     scheduled: RefCell<BinaryHeap<TimerKey>>,
     fatal_error: RefCell<Option<PyErr>>,
     timer_cancelled_count: Arc<AtomicUsize>,
@@ -225,7 +224,7 @@ impl Runtime {
             epoch: Instant::now(),
             stopping,
             driver: RefCell::new(driver),
-            ready: RefCell::new(VecDeque::new()),
+            executor: Executor::new(),
             scheduled: RefCell::new(BinaryHeap::new()),
             fatal_error: RefCell::new(None),
             timer_cancelled_count: Arc::new(AtomicUsize::new(0)),
@@ -236,16 +235,11 @@ impl Runtime {
         self.driver.borrow().driver_type()
     }
 
-    pub fn spawn<F>(&self, fut: F) -> Task<F::Output>
+    pub fn spawn<F>(&self, fut: F) -> JoinHandle<F::Output>
     where
-        F: Future,
+        F: Future + 'static,
     {
-        let schedule = |runnable| {
-            self.ready.borrow_mut().push_back(runnable);
-        };
-        let (runnable, task) = unsafe { async_task::spawn_unchecked(fut, schedule) };
-        runnable.schedule();
-        task
+        self.executor.spawn(fut)
     }
 
     #[inline]
@@ -290,19 +284,23 @@ impl Runtime {
             }
         }
 
-        let timeout =
-            if !self.ready.borrow().is_empty() || self.stopping.load(atomic::Ordering::Acquire) {
-                Some(Duration::default())
-            } else if let Some(next_scheduled) = self.scheduled.borrow().peek() {
-                Some(
-                    next_scheduled
-                        .when
-                        .saturating_duration_since(Instant::now())
-                        .min(MAXIMUM_SELECT_TIMEOUT),
-                )
-            } else {
-                None
-            };
+        let remaining_tasks = self.executor.tick();
+        if let Some(err) = self.fatal_error.take() {
+            return Err(err);
+        }
+
+        let timeout = if remaining_tasks || self.stopping.load(atomic::Ordering::Acquire) {
+            Some(Duration::default())
+        } else if let Some(next_scheduled) = self.scheduled.borrow().peek() {
+            Some(
+                next_scheduled
+                    .when
+                    .saturating_duration_since(Instant::now())
+                    .min(MAXIMUM_SELECT_TIMEOUT),
+            )
+        } else {
+            None
+        };
         debug!("Polling I/O with timeout {:?}", timeout);
         self.driver
             .borrow_mut()
@@ -324,22 +322,6 @@ impl Runtime {
                     }
                     _ => break,
                 }
-            }
-        }
-
-        // This is the only place where callbacks are actually *called*.
-        // All other places just add them to ready.
-        // Note: We run all currently scheduled callbacks, but not any
-        // callbacks scheduled by callbacks run this time around --
-        // they will be run the next time (after another I/O poll).
-        // Use an idiom that is thread-safe without using locks.
-        let ntodo = self.ready.borrow().len();
-        debug!("Ready handles to run: {}", ntodo);
-        for _ in 0..ntodo {
-            let runnable = self.ready.borrow_mut().pop_front().expect("not empty");
-            runnable.run();
-            if let Some(err) = self.fatal_error.take() {
-                return Err(err);
             }
         }
 
@@ -380,7 +362,6 @@ impl Drop for Runtime {
             key.waker.wake();
             trace!("Drop TimerKey");
         }
-        self.ready.take();
     }
 }
 

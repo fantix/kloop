@@ -17,11 +17,15 @@ pyo3 = "0.28.1"
 [workspace.dependencies.compio]
 default-features = false
 git = "https://github.com/compio-rs/compio.git"
-rev = "92127da50b383be53f7a5364ee818bf3952ac17f"
+rev = "8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
+
+[workspace.dependencies.compio-executor]
+git = "https://github.com/compio-rs/compio.git"
+rev = "8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
 
 [workspace.dependencies.compio-log]
 git = "https://github.com/compio-rs/compio.git"
-rev = "92127da50b383be53f7a5364ee818bf3952ac17f"
+rev = "8dff845528b2b47f3cc04c302fed0b0edc6c7c91"
 
 [patch.crates-io]
 compio-py-dynamic-openssl = { path = "compio-py-dynamic-openssl" }
