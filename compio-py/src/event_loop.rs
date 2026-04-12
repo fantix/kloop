@@ -13,8 +13,7 @@ use once_cell::sync::OnceCell;
 use pyo3::{
     IntoPyObjectExt,
     buffer::PyBuffer,
-    exceptions::PyRuntimeError,
-    exceptions::PyValueError,
+    exceptions::{PyRuntimeError, PyValueError},
     ffi::c_str,
     prelude::*,
     types::{PyDict, PyMapping, PyTuple, PyWeakrefReference},
@@ -22,10 +21,9 @@ use pyo3::{
 
 use crate::{
     handle::{Handle, TimerHandle},
-    import,
+    import, net,
     owned::{self, OwnedRefCell},
     runtime::{self, Runtime},
-    socket,
 };
 
 static COMPIO_FUTURE: OnceCell<Py<PyAny>> = OnceCell::new();
@@ -268,7 +266,7 @@ impl CompioLoop {
         };
         let pyloop = slf.clone().unbind();
         slf.borrow()
-            .spawn_py(py, socket::PySocket::new(pyloop, domain, ty, protocol))
+            .spawn_py(py, net::PySocket::new(pyloop, domain, ty, protocol))
     }
 }
 
@@ -284,8 +282,9 @@ impl CompioLoop {
         }
     }
 
-    /// Spawn a Rust Future onto the event loop, returning a connected Python Future.
-    /// When the Python Future is cancelled, the Rust Future is also cancelled.
+    /// Spawn a Rust Future onto the event loop, returning a connected Python
+    /// Future. When the Python Future is cancelled, the Rust Future is also
+    /// cancelled.
     pub fn spawn_py<'py, F>(&self, py: Python<'py>, fut: F) -> PyResult<Bound<'py, PyAny>>
     where
         F: Future<Output = PyResult<Py<PyAny>>> + 'static,
