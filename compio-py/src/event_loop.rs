@@ -6,7 +6,7 @@ use std::sync::{
     atomic::{self, AtomicBool},
 };
 
-use compio::driver::{SharedFd, ToSharedFd, op::Recv};
+use compio::driver::{SharedFd, ToSharedFd, op};
 use compio_executor::JoinHandle;
 use compio_log::*;
 use once_cell::sync::OnceCell;
@@ -227,7 +227,7 @@ impl CompioLoop {
                 let buf = unsafe { std::slice::from_raw_parts_mut(ptr, len) };
 
                 let fd = this.bind(py).borrow().socket_to_fd(py, &sock)?;
-                Ok(Recv::new(fd, buf, 0))
+                Ok(op::Recv::new(fd, buf, op::RecvFlags::empty()))
             })?;
             let nbytes = runtime::execute(op).await.0?;
 
