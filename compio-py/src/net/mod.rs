@@ -109,7 +109,7 @@ impl Splittable for SocketStream {
     type WriteHalf = WriteHalf;
 
     fn split(self) -> (Self::ReadHalf, Self::WriteHalf) {
-        (ReadHalf(self.inner.clone()), WriteHalf(self.inner.clone()))
+        (ReadHalf(self.inner.clone()), WriteHalf(self.inner))
     }
 }
 
