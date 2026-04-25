@@ -9,7 +9,7 @@ use compio::{
         ToSharedFd, impl_raw_fd,
         op::{self, BufResultExt},
     },
-    io::{AsyncRead, AsyncWrite},
+    io::{AsyncRead, AsyncWrite, util::Splittable},
 };
 use pyo3::{
     exceptions::PyTypeError,
@@ -35,13 +35,13 @@ pub struct SocketStream {
 impl AsyncRead for &SocketStream {
     #[inline]
     async fn read<B: IoBufMut>(&mut self, buf: B) -> BufResult<usize, B> {
-        self.inner.recv(buf, 0).await
+        self.inner.recv(buf, op::RecvFlags::empty()).await
     }
 }
 
 impl AsyncWrite for &SocketStream {
     async fn write<T: IoBuf>(&mut self, buf: T) -> BufResult<usize, T> {
-        self.inner.send(buf, 0).await
+        self.inner.send(buf, op::SendFlags::empty()).await
     }
 
     async fn flush(&mut self) -> io::Result<()> {
@@ -76,6 +76,40 @@ impl AsyncWrite for SocketStream {
 
     async fn shutdown(&mut self) -> io::Result<()> {
         (&*self).shutdown().await
+    }
+}
+
+pub struct ReadHalf(Socket);
+
+pub struct WriteHalf(Socket);
+
+impl AsyncRead for ReadHalf {
+    #[inline]
+    async fn read<B: IoBufMut>(&mut self, buf: B) -> BufResult<usize, B> {
+        self.0.recv(buf, op::RecvFlags::empty()).await
+    }
+}
+
+impl AsyncWrite for WriteHalf {
+    async fn write<T: IoBuf>(&mut self, buf: T) -> BufResult<usize, T> {
+        self.0.send(buf, op::SendFlags::empty()).await
+    }
+
+    async fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+
+    async fn shutdown(&mut self) -> io::Result<()> {
+        self.0.shutdown(Shutdown::Write).await
+    }
+}
+
+impl Splittable for SocketStream {
+    type ReadHalf = ReadHalf;
+    type WriteHalf = WriteHalf;
+
+    fn split(self) -> (Self::ReadHalf, Self::WriteHalf) {
+        (ReadHalf(self.inner.clone()), WriteHalf(self.inner))
     }
 }
 
@@ -171,14 +205,14 @@ impl Socket {
         Ok(())
     }
 
-    async fn recv<B: IoBufMut>(&self, buffer: B, flags: i32) -> BufResult<usize, B> {
+    async fn recv<B: IoBufMut>(&self, buffer: B, flags: op::RecvFlags) -> BufResult<usize, B> {
         let fd = self.to_shared_fd();
         let op = op::Recv::new(fd, buffer, flags);
         let res = runtime::execute(op).await.into_inner();
         unsafe { res.map_advanced() }
     }
 
-    async fn send<T: IoBuf>(&self, buffer: T, flags: i32) -> BufResult<usize, T> {
+    async fn send<T: IoBuf>(&self, buffer: T, flags: op::SendFlags) -> BufResult<usize, T> {
         let fd = self.to_shared_fd();
         let op = op::Send::new(fd, buffer, flags);
         runtime::execute(op).await.into_inner()

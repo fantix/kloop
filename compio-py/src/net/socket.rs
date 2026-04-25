@@ -8,7 +8,7 @@ use std::{
 
 use compio::{
     buf::buf_try,
-    driver::AsRawFd,
+    driver::{AsRawFd, op},
     tls::{
         TlsAcceptor, TlsConnector,
         py_dynamic_openssl::{self, SSLContext},
@@ -146,13 +146,14 @@ impl PySocket {
         slf: &Bound<Self>,
         py: Python<'py>,
         bufsize: usize,
-        flags: i32,
+        flags: u32,
     ) -> PyResult<Bound<'py, PyAny>> {
         let this = slf.clone().unbind();
         let slf = slf.borrow().pyloop.bind(py).borrow();
         slf.spawn_py(py, async move {
             let inner = Python::attach(|py| this.bind(py).borrow().inner().cloned())?;
             let buf: Vec<u8> = Vec::with_capacity(bufsize);
+            let flags = op::RecvFlags::from_bits_retain(flags);
             let (bytes_read, buf) = buf_try!(@try inner.recv(buf, flags).await);
             Python::attach(|py| {
                 PyBytes::new_with_writer(py, bytes_read, |w| Ok(w.write_all(&buf[..bytes_read])?))?
@@ -166,7 +167,7 @@ impl PySocket {
         slf: &Bound<Self>,
         py: Python<'py>,
         data: Py<PyAny>,
-        flags: i32,
+        flags: u32,
     ) -> PyResult<Bound<'py, PyAny>> {
         let this = slf.clone().unbind();
         let slf = slf.borrow().pyloop.bind(py).borrow();
@@ -175,6 +176,7 @@ impl PySocket {
                 let inner = this.bind(py).borrow().inner()?.clone();
                 py_any_to_buffer(py, data.bind(py)).map(|buf| (inner, buf))
             })?;
+            let flags = op::SendFlags::from_bits_retain(flags);
             let (bytes_written, _) = buf_try!(@try inner.send(buf, flags).await);
             drop(data);
             Python::attach(|py| bytes_written.into_py_any(py))
