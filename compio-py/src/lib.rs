@@ -60,6 +60,15 @@ enum Either<L, R> {
     Right(R),
 }
 
+impl<L, R> Either<L, R> {
+    fn into<T: From<L> + From<R>>(self) -> T {
+        match self {
+            Self::Left(l) => T::from(l),
+            Self::Right(r) => T::from(r),
+        }
+    }
+}
+
 impl<L: IoBuf, R: IoBuf> IoBuf for Either<L, R> {
     fn as_init(&self) -> &[u8] {
         match self {

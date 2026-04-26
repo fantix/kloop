@@ -56,6 +56,7 @@ pub struct SSLSocketMetadata {
     pub implementation: SSLImpl,
     pub server_side: bool,
     pub fd: RawFd,
+    pub ktls: bool,
 }
 
 #[pyclass(unsendable)]
@@ -69,7 +70,7 @@ impl SSLSocket {
     pub fn new(
         py: Python,
         pyloop: &Py<CompioLoop>,
-        stream: TlsStream<SocketStream>,
+        stream: InnerStream,
         metadata: SSLSocketMetadata,
     ) -> PyResult<Py<Self>> {
         Py::new(
@@ -132,8 +133,11 @@ impl SSLSocket {
     fn __repr__(&self) -> PyResult<String> {
         Ok(match self.inner.borrow_opt()?.as_ref() {
             Some(_) => format!(
-                "<compio.SSLSocket impl={:?}, server_side={}, fd={:?}>",
-                self.metadata.implementation, self.metadata.server_side, self.metadata.fd,
+                "<compio.SSLSocket impl={:?}{}, server_side={}, fd={:?}>",
+                self.metadata.implementation,
+                if self.metadata.ktls { "+kTLS" } else { "" },
+                self.metadata.server_side,
+                self.metadata.fd,
             ),
             None => "<compio.SSLSocket (closed)>".to_string(),
         })
@@ -141,39 +145,100 @@ impl SSLSocket {
 }
 
 #[derive(Clone)]
-struct SSLSocketInner(Rc<RefCell<Option<TlsStream<SocketStream>>>>);
+struct SSLSocketInner(Rc<RefCell<Option<InnerStream>>>);
 
 impl SSLSocketInner {
-    fn new(stream: TlsStream<SocketStream>) -> Self {
+    fn new(stream: InnerStream) -> Self {
         Self(Rc::new(RefCell::new(Some(stream))))
     }
 
     #[inline]
-    fn borrow_opt(&self) -> PyResult<cell::Ref<'_, Option<TlsStream<SocketStream>>>> {
+    fn borrow_opt(&self) -> PyResult<cell::Ref<'_, Option<InnerStream>>> {
         self.0
             .try_borrow()
             .map_err(|_| PyRuntimeError::new_err("concurrent access to SSLSocket"))
     }
 
     #[inline]
-    fn borrow(&self) -> PyResult<cell::Ref<'_, TlsStream<SocketStream>>> {
+    fn borrow(&self) -> PyResult<cell::Ref<'_, InnerStream>> {
         cell::Ref::filter_map(self.borrow_opt()?, |rv| rv.as_ref())
             .map_err(|_| PyOSError::new_err("socket is closed"))
     }
 
     #[inline]
-    fn borrow_mut_opt(&self) -> PyResult<cell::RefMut<'_, Option<TlsStream<SocketStream>>>> {
+    fn borrow_mut_opt(&self) -> PyResult<cell::RefMut<'_, Option<InnerStream>>> {
         self.0
             .try_borrow_mut()
             .map_err(|_| PyRuntimeError::new_err("concurrent access to SSLSocket"))
     }
 
     #[inline]
-    fn borrow_mut(&self) -> PyResult<cell::RefMut<'_, TlsStream<SocketStream>>> {
+    fn borrow_mut(&self) -> PyResult<cell::RefMut<'_, InnerStream>> {
         cell::RefMut::filter_map(self.borrow_mut_opt()?, |rv| rv.as_mut())
             .map_err(|_| PyOSError::new_err("socket is closed"))
     }
 }
+
+#[cfg(target_os = "linux")]
+pub enum InnerStream {
+    UserSpace(TlsStream<SocketStream>),
+    Kernel(compio_ktls::KtlsStream<SocketStream>),
+}
+
+#[cfg(target_os = "linux")]
+impl InnerStream {
+    async fn read<B: compio::buf::IoBufMut>(&mut self, buf: B) -> compio::BufResult<usize, B> {
+        match self {
+            InnerStream::UserSpace(stream) => stream.read(buf).await,
+            InnerStream::Kernel(stream) => stream.read(buf).await,
+        }
+    }
+
+    async fn write<T: compio::buf::IoBuf>(&mut self, buf: T) -> compio::BufResult<usize, T> {
+        match self {
+            InnerStream::UserSpace(stream) => stream.write(buf).await,
+            InnerStream::Kernel(stream) => stream.write(buf).await,
+        }
+    }
+
+    async fn flush(&mut self) -> io::Result<()> {
+        match self {
+            InnerStream::UserSpace(stream) => stream.flush().await,
+            InnerStream::Kernel(stream) => stream.flush().await,
+        }
+    }
+
+    async fn shutdown(&mut self) -> io::Result<()> {
+        match self {
+            InnerStream::UserSpace(stream) => stream.shutdown().await,
+            InnerStream::Kernel(stream) => stream.shutdown().await,
+        }
+    }
+
+    fn negotiated_alpn(&self) -> Option<Cow<'_, [u8]>> {
+        match self {
+            InnerStream::UserSpace(stream) => stream.negotiated_alpn(),
+            InnerStream::Kernel(stream) => stream.negotiated_alpn(),
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl From<TlsStream<SocketStream>> for InnerStream {
+    fn from(stream: TlsStream<SocketStream>) -> Self {
+        Self::UserSpace(stream)
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl From<compio_ktls::KtlsStream<SocketStream>> for InnerStream {
+    fn from(stream: compio_ktls::KtlsStream<SocketStream>) -> Self {
+        Self::Kernel(stream)
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+type InnerStream = TlsStream<SocketStream>;
 
 #[pyclass]
 pub struct RustlsContext {
@@ -429,6 +494,7 @@ impl RustlsContext {
             if let Some(protocols) = alpn_protocols {
                 config.alpn_protocols = protocols;
             }
+            config.enable_secret_extraction = true;
             Either::Left(Arc::new(config))
         } else {
             let builder = ClientConfig::builder_with_details(
@@ -465,6 +531,7 @@ impl RustlsContext {
             if let Some(protocols) = alpn_protocols {
                 config.alpn_protocols = protocols;
             }
+            config.enable_secret_extraction = true;
             Either::Right(Arc::new(config))
         };
         state.config = Some(rv.clone());

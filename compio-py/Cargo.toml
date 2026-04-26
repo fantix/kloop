@@ -25,6 +25,9 @@ socket2 = "0.6.2"
 rustls-webpki = "0"
 pem = "3.0.6"
 pkcs8 = { version = "0.10.2", features = ["encryption"] }
-compio = { workspace = true, features = ["io-uring", "polling", "io", "py-dynamic-openssl", "rustls", "ring"] }
+compio = { workspace = true, features = ["io-uring", "polling", "io", "io-ancillary", "py-dynamic-openssl", "rustls", "ring"] }
 compio-executor = { workspace = true }
 compio-log = { workspace = true }
+
+[target."cfg(target_os = \"linux\")".dependencies]
+compio-ktls = { workspace = true }

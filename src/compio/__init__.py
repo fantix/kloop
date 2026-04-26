@@ -2,6 +2,6 @@
 # Copyright 2025 Fantix King
 
 from ._core import Handle, Socket, SSLSocket, TimerHandle
-from .loop import CompioLoop, DriverType
+from .loop import CompioLoop, DriverType, KtlsMode
 
-__all__ = ["CompioLoop", "DriverType", "Handle", "Socket", "SSLSocket", "TimerHandle"]
+__all__ = ["CompioLoop", "DriverType", "Handle", "Socket", "SSLSocket", "TimerHandle", "KtlsMode"]

@@ -23,6 +23,13 @@ class DriverType(enum.StrEnum):
     IOCP = "IOCP"
 
 
+class KtlsMode(enum.StrEnum):
+    DEFAULT = "Default"
+    PREFER = "Prefer"
+    REQUIRE = "Require"
+    DISABLED = "Disabled"
+
+
 class CompioLoop(_core.CompioLoop, asyncio.AbstractEventLoop):
     _exception_handler: Optional[_ExceptionHandler]
 
@@ -34,6 +41,14 @@ class CompioLoop(_core.CompioLoop, asyncio.AbstractEventLoop):
 
     def get_driver_type(self) -> DriverType:
         return DriverType(super().get_driver_type())
+
+    @property  # type: ignore[override]
+    def ktls_mode(self) -> KtlsMode:
+        return KtlsMode(super().ktls_mode)
+
+    @ktls_mode.setter
+    def ktls_mode(self, mode: KtlsMode) -> None:
+        _core.CompioLoop.ktls_mode.__set__(self, mode.value)  # type: ignore[attr-defined]
 
     def __repr__(self) -> str:
         try:
