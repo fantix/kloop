@@ -28,12 +28,27 @@ use crate::{
 
 static COMPIO_FUTURE: OnceCell<Py<PyAny>> = OnceCell::new();
 
+#[derive(Debug, Clone, Copy, Default)]
+pub enum KtlsMode {
+    #[default]
+    Prefer,
+    Require,
+    Disabled,
+}
+
+impl KtlsMode {
+    pub fn enabled(self) -> bool {
+        matches!(self, KtlsMode::Prefer | KtlsMode::Require)
+    }
+}
+
 #[pyclass(subclass)]
 pub struct CompioLoop {
     runtime: OwnedRefCell<Runtime>,
     stopping: Arc<AtomicBool>,
     debug: Arc<AtomicBool>,
     registered: Py<PyMapping>,
+    ktls_mode: KtlsMode,
 }
 
 #[pymethods]
@@ -45,6 +60,7 @@ impl CompioLoop {
             stopping: Default::default(),
             debug: Default::default(),
             registered: import::weakref::weak_key_dict(py)?.cast_into()?.unbind(),
+            ktls_mode: KtlsMode::default(),
         })
     }
 
@@ -268,6 +284,27 @@ impl CompioLoop {
         slf.borrow()
             .spawn_py(py, net::PySocket::new(pyloop, domain, ty, protocol))
     }
+
+    #[getter]
+    fn ktls_mode(&self) -> String {
+        format!("{:?}", self.ktls_mode)
+    }
+
+    #[setter]
+    fn set_ktls_mode(&mut self, mode: &Bound<PyAny>) -> PyResult<()> {
+        self.ktls_mode = match mode.str()?.to_str()? {
+            "Prefer" => KtlsMode::Prefer,
+            "Require" => KtlsMode::Require,
+            "Disabled" => KtlsMode::Disabled,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown KTLS mode: {}",
+                    other
+                )));
+            }
+        };
+        Ok(())
+    }
 }
 
 impl CompioLoop {
@@ -330,6 +367,10 @@ impl CompioLoop {
         });
         cancellable.borrow_mut().task.replace(join_handle);
         Ok(rv)
+    }
+
+    pub fn get_ktls_mode(&self) -> KtlsMode {
+        self.ktls_mode
     }
 
     fn socket_to_fd(&self, py: Python, sock: &Py<PyAny>) -> PyResult<SharedFd<BorrowedFd>> {

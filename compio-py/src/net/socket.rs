@@ -17,7 +17,7 @@ use compio::{
 };
 use pyo3::{
     IntoPyObjectExt,
-    exceptions::{PyOSError, PyTypeError, PyValueError},
+    exceptions::{PyNotImplementedError, PyOSError, PyRuntimeError, PyTypeError, PyValueError},
     prelude::*,
     types::{PyBytes, PyList},
 };
@@ -27,7 +27,11 @@ use super::{
     Socket, SocketStream, idna_converter, name_to_ip,
     ssl::{RustlsContext, SSLImpl, SSLSocket, SSLSocketMetadata},
 };
-use crate::{Either, event_loop::CompioLoop, extract_py_err, import, py_any_to_buffer};
+use crate::{
+    Either,
+    event_loop::{CompioLoop, KtlsMode},
+    extract_py_err, import, py_any_to_buffer,
+};
 
 #[pyclass(unsendable, name = "Socket")]
 pub struct PySocket {
@@ -193,12 +197,13 @@ impl PySocket {
     ) -> PyResult<Bound<'py, PyAny>> {
         let this = slf.clone().unbind();
         let slf = slf.borrow().pyloop.bind(py).borrow();
+        let ktls_mode = slf.get_ktls_mode();
         slf.spawn_py(py, async move {
             let mut metadata = SSLSocketMetadata::default();
             metadata.server_side = server_side;
 
-            // First, verify parameters and prepare either TlsAcceptor or TlsConnector.
-            let tls = Python::attach(|py| {
+            // First, verify parameters and prepare either SSLContext or Server/ClientConfig
+            let ctx = Python::attach(|py| {
                 let has_ossl = py_dynamic_openssl::load_py(py)?;
                 // Coerce sslcontext to either SSLContext or RustlsContext
                 let ctx: Either<_, Bound<RustlsContext>> = match sslcontext
@@ -213,15 +218,20 @@ impl PySocket {
                     None if !server_side => Either::Left(import::ssl::create_default_context(py)?),
                     None => Err(PyValueError::new_err("server_side requires sslcontext"))?,
                 };
-                // Build TlsAcceptor or TlsConnector from the context
-                match ctx {
-                    Either::Left(ctx) if has_ossl => SSLContext::try_from(ctx).map(|ctx| {
-                        if server_side {
-                            Either::Left(TlsAcceptor::from(ctx))
-                        } else {
-                            Either::Right(TlsConnector::from(ctx))
+                Ok(match ctx {
+                    Either::Left(ctx) if has_ossl => {
+                        let ctx = SSLContext::try_from(ctx)?;
+                        if matches!(ktls_mode, KtlsMode::Require) {
+                            return Err(PyNotImplementedError::new_err(
+                                "kTLS is unimplemented for OpenSSL",
+                            ));
                         }
-                    }),
+                        if server_side {
+                            Either::Left(Either::Left(ctx))
+                        } else {
+                            Either::Right(Either::Left(ctx))
+                        }
+                    }
                     Either::Left(ctx) => {
                         // This case is guaranteed to be a default client-side SSLContext
                         debug_assert!(!server_side);
@@ -236,20 +246,21 @@ impl PySocket {
                                 .add(CertificateDer::from(cert))
                                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
                         }
-                        let config = rustls::ClientConfig::builder()
+                        let mut config = rustls::ClientConfig::builder()
                             .with_root_certificates(root_store)
                             .with_no_client_auth();
-                        Ok(Either::Right(TlsConnector::from(Arc::new(config))))
+                        config.enable_secret_extraction = ktls_mode.enabled();
+                        Either::Right(Either::Right(Arc::new(config)))
                     }
                     Either::Right(ctx) => {
                         metadata.implementation = SSLImpl::Rustls;
                         let ctx = ctx.borrow();
-                        Ok(match ctx.build(py, server_side)? {
-                            Either::Left(c) => Either::Left(TlsAcceptor::from(c)),
-                            Either::Right(c) => Either::Right(TlsConnector::from(c)),
-                        })
+                        match ctx.build(py, server_side)? {
+                            Either::Left(c) => Either::Left(Either::Right(c)),
+                            Either::Right(c) => Either::Right(Either::Right(c)),
+                        }
                     }
-                }
+                })
             })?;
 
             // Then, do TLS handshake accordingly
@@ -258,9 +269,36 @@ impl PySocket {
             };
             metadata.fd = inner.as_raw_fd();
             let stream = SocketStream { inner };
-            let stream = match tls {
-                Either::Left(acceptor) => extract_py_err(acceptor.accept(stream).await)?,
-                Either::Right(connector) => {
+            let stream = match ctx {
+                #[cfg(target_os = "linux")]
+                Either::Left(Either::Right(ctx)) => {
+                    let stream = if ktls_mode.enabled() {
+                        extract_py_err(
+                            compio_ktls::KtlsAcceptor::from(ctx.clone())
+                                .accept(stream)
+                                .await,
+                        )?
+                    } else {
+                        Err(stream)
+                    };
+                    match (ktls_mode, stream) {
+                        (KtlsMode::Require, Err(_)) => {
+                            return Err(PyRuntimeError::new_err("kTLS is unsupported"));
+                        }
+                        (_, Ok(stream)) => {
+                            metadata.ktls = true;
+                            stream.into()
+                        }
+                        (_, Err(stream)) => {
+                            extract_py_err(TlsAcceptor::from(ctx).accept(stream).await)?.into()
+                        }
+                    }
+                }
+                Either::Left(ctx) => {
+                    debug_assert!(!matches!(ktls_mode, KtlsMode::Require));
+                    extract_py_err(ctx.into::<TlsAcceptor>().accept(stream).await)?.into()
+                }
+                Either::Right(ctx) => {
                     let name = match server_hostname {
                         Some(name) => name,
                         None => stream
@@ -272,7 +310,36 @@ impl PySocket {
                             .ip()
                             .to_string(),
                     };
-                    extract_py_err(connector.connect(&name, stream).await)?
+                    #[cfg(target_os = "linux")]
+                    let stream = match (ktls_mode, &ctx) {
+                        (KtlsMode::Require, Either::Left(_)) => unreachable!(),
+                        (KtlsMode::Require | KtlsMode::Prefer, Either::Right(ctx)) => {
+                            extract_py_err(
+                                compio_ktls::KtlsConnector::from(ctx.clone())
+                                    .connect(&name, stream)
+                                    .await,
+                            )?
+                        }
+                        _ => Err(stream),
+                    };
+                    #[cfg(not(target_os = "linux"))]
+                    let stream = Err::<SocketStream, _>(stream);
+                    match (ktls_mode, stream) {
+                        (KtlsMode::Require, Err(_)) => {
+                            return Err(PyRuntimeError::new_err("kTLS is unsupported"));
+                        }
+                        #[cfg(target_os = "linux")]
+                        (_, Ok(stream)) => {
+                            metadata.ktls = true;
+                            stream.into()
+                        }
+                        #[cfg(not(target_os = "linux"))]
+                        (_, Ok(_)) => unreachable!(),
+                        (_, Err(stream)) => {
+                            extract_py_err(ctx.into::<TlsConnector>().connect(&name, stream).await)?
+                                .into()
+                        }
+                    }
                 }
             };
 
