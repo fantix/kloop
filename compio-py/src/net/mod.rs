@@ -4,7 +4,7 @@
 use std::{io, net::Shutdown};
 
 use compio::{
-    buf::{BufResult, IntoInner, IoBuf, IoBufMut, IoVectoredBufMut, buf_try},
+    buf::{BufResult, IntoInner, IoBuf, IoBufMut, IoVectoredBuf, IoVectoredBufMut, buf_try},
     driver::{
         ToSharedFd, impl_raw_fd,
         op::{self, BufResultExt},
@@ -18,7 +18,7 @@ use pyo3::{
 };
 use socket2::{Domain, Protocol, SockAddr, Socket as Socket2, Type};
 
-pub use self::socket::PySocket;
+pub use self::{socket::PySocket, transport::StreamTransport};
 use crate::{
     import,
     runtime::{self, Attacher},
@@ -26,6 +26,9 @@ use crate::{
 
 mod socket;
 mod ssl;
+mod transport;
+
+const ZEROCOPY_SEND_BUFFER_THRESHOLD: usize = 1024 * 8;
 
 #[derive(Debug, Clone)]
 pub struct SocketStream {
@@ -214,8 +217,24 @@ impl Socket {
 
     async fn send<T: IoBuf>(&self, buffer: T, flags: op::SendFlags) -> BufResult<usize, T> {
         let fd = self.to_shared_fd();
-        let op = op::Send::new(fd, buffer, flags);
-        runtime::execute(op).await.into_inner()
+        if buffer.buf_len() < ZEROCOPY_SEND_BUFFER_THRESHOLD {
+            let op = op::Send::new(fd, buffer, flags);
+            runtime::execute(op).await.into_inner()
+        } else {
+            let op = op::SendZc::new(fd, buffer, flags);
+            runtime::execute_zerocopy(op).await.into_inner()
+        }
+    }
+
+    async fn sendmsg<T: IoVectoredBuf>(&self, buffer: T, flags: i32) -> BufResult<usize, T> {
+        let fd = self.to_shared_fd();
+        if buffer.total_len() < ZEROCOPY_SEND_BUFFER_THRESHOLD {
+            let op = op::SendVectored::new(fd, buffer, flags);
+            runtime::execute(op).await.into_inner()
+        } else {
+            let op = op::SendVectoredZc::new(fd, buffer, flags);
+            runtime::execute_zerocopy(op).await.into_inner()
+        }
     }
 
     async fn shutdown(&self, how: Shutdown) -> io::Result<()> {
